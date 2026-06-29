@@ -3,19 +3,68 @@ from pathlib import Path
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 
 from db import get_connection, init_db
-from parser import (
-    parse_statement_csv,
-    parse_statement_pdf,
-    parse_statement_xlsx,
-    categorize,
-)
+from parser import parse_statement_xlsx, categorize
 
 BASE_DIR = Path(__file__).parent
+STATEMENT_FILE = BASE_DIR / "data" / "bank_statement.xlsx"
 
 app = Flask(__name__, static_folder=str(BASE_DIR / "public" / "static"))
 app.secret_key = "recon-dev-secret"
 
+
+def _load_statement_file(replace=False):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    if replace:
+        cur.execute("DELETE FROM transactions")
+        cur.execute("DELETE FROM statements")
+    else:
+        cur.execute("SELECT COUNT(*) AS count FROM statements")
+        if cur.fetchone()["count"] > 0:
+            cur.close()
+            conn.close()
+            return None
+
+    records = parse_statement_xlsx(STATEMENT_FILE)
+
+    cur.execute("SELECT keyword, category FROM rules")
+    rules = [(r["keyword"], r["category"]) for r in cur.fetchall()]
+
+    cur.execute(
+        "INSERT INTO statements (filename) VALUES (%s) RETURNING id",
+        (STATEMENT_FILE.name,),
+    )
+    statement_id = cur.fetchone()["id"]
+
+    for rec in records:
+        category = rec.get("category") or categorize(rec["description"], rules)
+        if category == "Uncategorized" and rec["type"] == "income":
+            category = "Income"
+        cur.execute(
+            """
+            INSERT INTO transactions (statement_id, date, description, amount, type, category, customer_code)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                statement_id,
+                rec["date"],
+                rec["description"],
+                rec["amount"],
+                rec["type"],
+                category,
+                rec.get("customer_code"),
+            ),
+        )
+
+    conn.commit()
+    cur.close()
+    conn.close()
+    return len(records)
+
+
 init_db()
+_load_statement_file()
 
 
 @app.route("/")
@@ -76,84 +125,16 @@ def index():
     )
 
 
-@app.route("/upload", methods=["POST"])
-def upload():
-    files = [f for f in request.files.getlist("statement") if f and f.filename]
-    if not files:
-        flash("Please choose one or more CSV or PDF files to upload.", "error")
+@app.route("/reload", methods=["POST"])
+def reload_statement_file():
+    try:
+        count = _load_statement_file(replace=True)
+    except ValueError as exc:
+        flash(str(exc), "error")
         return redirect(url_for("index"))
 
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT keyword, category FROM rules")
-    rules = [(r["keyword"], r["category"]) for r in cur.fetchall()]
-
-    imported_files = 0
-    imported_txns = 0
-    errors = []
-
-    for file in files:
-        name_lower = file.filename.lower()
-        try:
-            if name_lower.endswith(".csv"):
-                records = parse_statement_csv(file.stream)
-            elif name_lower.endswith(".pdf"):
-                records = parse_statement_pdf(file.stream)
-            elif name_lower.endswith(".xlsx") or name_lower.endswith(".xls"):
-                records = parse_statement_xlsx(file.stream)
-            else:
-                errors.append(f"{file.filename}: unsupported file type.")
-                continue
-        except ValueError as exc:
-            errors.append(f"{file.filename}: {exc}")
-            continue
-
-        if not records:
-            errors.append(f"{file.filename}: no transactions could be parsed.")
-            continue
-
-        cur.execute(
-            "INSERT INTO statements (filename) VALUES (%s) RETURNING id",
-            (file.filename,),
-        )
-        statement_id = cur.fetchone()["id"]
-
-        for rec in records:
-            category = rec.get("category") or categorize(rec["description"], rules)
-            if category == "Uncategorized" and rec["type"] == "income":
-                category = "Income"
-            cur.execute(
-                """
-                INSERT INTO transactions (statement_id, date, description, amount, type, category, customer_code)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    statement_id,
-                    rec["date"],
-                    rec["description"],
-                    rec["amount"],
-                    rec["type"],
-                    category,
-                    rec.get("customer_code"),
-                ),
-            )
-
-        imported_files += 1
-        imported_txns += len(records)
-
-    conn.commit()
-    cur.close()
-    conn.close()
-
-    if imported_files:
-        flash(
-            f"Imported {imported_txns} transactions from {imported_files} statement(s).",
-            "success",
-        )
-    for err in errors:
-        flash(err, "error")
-
-    return redirect(url_for("transactions") if imported_files else url_for("index"))
+    flash(f"Reloaded {count} transactions from {STATEMENT_FILE.name}.", "success")
+    return redirect(url_for("index"))
 
 
 @app.route("/transactions")

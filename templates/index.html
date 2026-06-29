@@ -3,11 +3,10 @@
 {% block content %}
 
 <section class="card">
-  <h2>Upload bank statements</h2>
-  <p class="hint">CSV, PDF, or Excel (.xlsx) bank statements / bookkeeping workbooks. Excel workbooks with a "Transactions" sheet (Date, Description, Counterparty Code, Category, Debit, Credit columns) are read directly, preserving customer codes and categories. Select multiple files to import them all at once.</p>
-  <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data" class="upload-form">
-    <input type="file" name="statement" accept=".csv,.pdf,.xlsx,.xls" multiple required>
-    <button type="submit">Import</button>
+  <h2>Data Source</h2>
+  <p class="hint">This app reads directly from the bookkeeping workbook bundled with the app (<code>data/bank_statement.xlsx</code>). To update the data, replace that file and redeploy, then reload below.</p>
+  <form action="{{ url_for('reload_statement_file') }}" method="post" onsubmit="return confirm('Reload from the bundled workbook? This replaces all current transactions.');">
+    <button type="submit">Reload from file</button>
   </form>
 </section>
 
@@ -41,7 +40,7 @@
     </tbody>
   </table>
   {% else %}
-  <p class="hint">No expenses yet. Upload a statement to get started.</p>
+  <p class="hint">No expenses yet. Reload from the data source to get started.</p>
   {% endif %}
 </section>
 
@@ -66,26 +65,21 @@
 </section>
 
 <section class="card">
-  <h2>Imported Statements</h2>
+  <h2>Loaded Statement</h2>
   {% if statements %}
   <table class="data-table">
-    <thead><tr><th>File</th><th>Uploaded</th><th></th></tr></thead>
+    <thead><tr><th>File</th><th>Loaded</th></tr></thead>
     <tbody>
       {% for s in statements %}
       <tr>
         <td><a href="{{ url_for('transactions', statement_id=s.id) }}">{{ s.filename }}</a></td>
         <td>{{ s.uploaded_at }}</td>
-        <td>
-          <form action="{{ url_for('delete_statement', statement_id=s.id) }}" method="post" onsubmit="return confirm('Delete this statement and all its transactions?');">
-            <button type="submit" class="link-button danger">Delete</button>
-          </form>
-        </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
   {% else %}
-  <p class="hint">No statements uploaded yet.</p>
+  <p class="hint">No statement loaded yet.</p>
   {% endif %}
 </section>
 
