@@ -180,6 +180,7 @@ def transactions():
     statement_id = request.args.get("statement_id")
     type_filter = request.args.get("type")
     category_filter = request.args.get("category")
+    search = request.args.get("search", "").strip()
 
     query = "SELECT t.*, s.filename FROM transactions t JOIN statements s ON t.statement_id = s.id WHERE 1=1"
     params = []
@@ -192,12 +193,18 @@ def transactions():
     if category_filter:
         query += " AND t.category = %s"
         params.append(category_filter)
+    if search:
+        query += " AND t.description ILIKE %s"
+        params.append(f"%{search}%")
     query += " ORDER BY t.date DESC, t.id DESC"
 
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(query, params)
     rows = cur.fetchall()
+
+    income_total = sum(float(r["amount"]) for r in rows if r["type"] == "income")
+    expense_total = sum(float(r["amount"]) for r in rows if r["type"] == "expense")
 
     cur.execute("SELECT DISTINCT category FROM transactions ORDER BY category")
     categories = [r["category"] for r in cur.fetchall()]
@@ -216,6 +223,10 @@ def transactions():
         statement_id=statement_id,
         type_filter=type_filter,
         category_filter=category_filter,
+        search=search,
+        income_total=income_total,
+        expense_total=expense_total,
+        net_total=income_total - expense_total,
     )
 
 
