@@ -7,29 +7,57 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-  <nav class="navbar">
-    <a class="brand" href="{{ url_for('index') }}">Bank Recon</a>
-    <div class="nav-links">
-      <a href="{{ url_for('index') }}">Dashboard</a>
-      <a href="{{ url_for('transactions') }}">Transactions</a>
-      <a href="{{ url_for('customers') }}">Customers</a>
-      <a href="{{ url_for('payments') }}">Payments</a>
-      <a href="{{ url_for('rules') }}">Categorization Rules</a>
-    </div>
-  </nav>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span class="sidebar-brand-icon">&#9636;</span>
+        <span>Bank Recon</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="{{ url_for('index') }}" class="{{ 'active' if request.endpoint == 'index' else '' }}">
+          <span class="nav-icon">&#9632;</span> Dashboard
+        </a>
+        <a href="{{ url_for('transactions') }}" class="{{ 'active' if request.endpoint == 'transactions' else '' }}">
+          <span class="nav-icon">&#9776;</span> Transactions
+        </a>
+        <a href="{{ url_for('customers') }}" class="{{ 'active' if request.endpoint in ('customers', 'customer_detail') else '' }}">
+          <span class="nav-icon">&#9737;</span> Customers
+        </a>
+        <a href="{{ url_for('payments') }}" class="{{ 'active' if request.endpoint == 'payments' else '' }}">
+          <span class="nav-icon">&#8644;</span> Payments
+        </a>
+        <a href="{{ url_for('rules') }}" class="{{ 'active' if request.endpoint == 'rules' else '' }}">
+          <span class="nav-icon">&#9881;</span> Categorization Rules
+        </a>
+      </nav>
+    </aside>
 
-  <main class="container">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        <div class="flash-stack">
-          {% for category, message in messages %}
-            <div class="flash flash-{{ category }}">{{ message }}</div>
-          {% endfor %}
+    <div class="main-area">
+      <header class="topbar">
+        <div class="breadcrumb">App <span class="sep">&rsaquo;</span> <strong>{% block crumb %}Dashboard{% endblock %}</strong></div>
+        <div class="topbar-user">
+          <span class="avatar">B</span>
+          <div class="topbar-user-text">
+            <span class="user-name">Bank Recon</span>
+            <span class="user-role">Personal</span>
+          </div>
         </div>
-      {% endif %}
-    {% endwith %}
+      </header>
 
-    {% block content %}{% endblock %}
-  </main>
+      <main class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="flash-stack">
+              {% for category, message in messages %}
+                <div class="flash flash-{{ category }}">{{ message }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
 </body>
 </html>

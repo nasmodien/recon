@@ -12,11 +12,18 @@ CUSTOMER_CANDIDATES = [
     "customer code",
     "cu number",
     "customer account number",
-    "account number",
 ]
 CATEGORY_CANDIDATES = ["category"]
 
 ISO_DATE_RE = re.compile(r"^\d{4}-\d{1,2}-\d{1,2}$")
+CU_CODE_RE = re.compile(r"Cu\s?(\d{2,})", re.IGNORECASE)
+
+
+def _extract_customer_code(description):
+    matches = CU_CODE_RE.findall(description)
+    if not matches:
+        return None
+    return f"Cu{matches[-1]}"
 
 
 def _find_column(columns, candidates):
@@ -74,8 +81,8 @@ def parse_statement_xlsx(file_path):
         if not amount:
             continue
 
-        customer_code = None
-        if customer_col is not None:
+        customer_code = _extract_customer_code(desc_val)
+        if customer_code is None and customer_col is not None:
             val = row.get(customer_col)
             if pd.notna(val) and str(val).strip():
                 customer_code = str(val).strip()

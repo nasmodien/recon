@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Dashboard - Bank Recon{% endblock %}
+{% block crumb %}Dashboard{% endblock %}
 {% block content %}
 
 <section class="card">
@@ -12,14 +13,17 @@
 
 <section class="summary-grid">
   <div class="card stat stat-income">
+    <span class="stat-icon">&#8593;</span>
     <span class="stat-label">Total Income</span>
     <span class="stat-value">{{ "%.2f"|format(income_total) }}</span>
   </div>
   <div class="card stat stat-expense">
+    <span class="stat-icon">&#8595;</span>
     <span class="stat-label">Total Expenses</span>
     <span class="stat-value">{{ "%.2f"|format(expense_total) }}</span>
   </div>
   <div class="card stat stat-net">
+    <span class="stat-icon">&#8776;</span>
     <span class="stat-label">Net</span>
     <span class="stat-value">{{ "%.2f"|format(net_total) }}</span>
   </div>

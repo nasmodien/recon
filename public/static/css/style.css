@@ -2,75 +2,159 @@
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background: #f4f6f8;
+  background: #f4f6fb;
   color: #1f2933;
 }
 
-.navbar {
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 230px;
+  flex-shrink: 0;
+  background: #1c2536;
+  color: #c7cbd9;
+  padding: 1.25rem 0;
+  display: flex;
+  flex-direction: column;
+}
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0 1.25rem 1.25rem;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  margin-bottom: 0.75rem;
+}
+.sidebar-brand-icon { color: #5b8def; }
+.sidebar-nav { display: flex; flex-direction: column; }
+.sidebar-nav a {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: #aab2c8;
+  text-decoration: none;
+  padding: 0.65rem 1.25rem;
+  font-size: 0.88rem;
+  border-left: 3px solid transparent;
+}
+.sidebar-nav a .nav-icon { width: 1.1rem; text-align: center; opacity: 0.85; }
+.sidebar-nav a:hover { background: rgba(255,255,255,0.04); color: #fff; }
+.sidebar-nav a.active {
+  background: rgba(91,141,239,0.15);
+  color: #fff;
+  border-left-color: #5b8def;
+}
+
+/* Main area */
+.main-area { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+.topbar {
+  background: #fff;
+  border-bottom: 1px solid #e4e7ef;
+  padding: 0.85rem 1.75rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #1f2933;
-  color: #fff;
-  padding: 0.75rem 1.5rem;
 }
-.navbar .brand { color: #fff; font-weight: 700; text-decoration: none; font-size: 1.1rem; }
-.nav-links a { color: #d2d6dc; margin-left: 1.25rem; text-decoration: none; }
-.nav-links a:hover { color: #fff; }
+.breadcrumb { color: #8a93a8; font-size: 0.85rem; }
+.breadcrumb .sep { margin: 0 0.3rem; }
+.breadcrumb strong { color: #1f2933; }
+.topbar-user { display: flex; align-items: center; gap: 0.6rem; }
+.avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: #5b8def; color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 0.85rem;
+}
+.topbar-user-text { display: flex; flex-direction: column; line-height: 1.2; }
+.user-name { font-size: 0.85rem; font-weight: 600; }
+.user-role { font-size: 0.75rem; color: #8a93a8; }
 
-.container { max-width: 960px; margin: 1.5rem auto; padding: 0 1rem; }
+.container { max-width: 1180px; margin: 0 auto; padding: 1.5rem 1.75rem; width: 100%; }
 
 .card {
   background: #fff;
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 1.25rem 1.5rem;
   margin-bottom: 1.25rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  box-shadow: 0 1px 2px rgba(16,24,40,0.04), 0 1px 3px rgba(16,24,40,0.06);
 }
-.card h2 { margin-top: 0; font-size: 1.1rem; }
-.hint { color: #7b8794; font-size: 0.9rem; }
+.card h2 { margin-top: 0; font-size: 1.05rem; }
+.hint { color: #8a93a8; font-size: 0.9rem; }
 
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
+  gap: 1.1rem;
 }
-.stat { text-align: center; }
-.stat-label { display: block; color: #7b8794; font-size: 0.85rem; }
-.stat-value { display: block; font-size: 1.6rem; font-weight: 700; margin-top: 0.25rem; }
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.stat-label { display: block; color: #8a93a8; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.stat-value { display: block; font-size: 1.8rem; font-weight: 700; }
+.stat-icon {
+  width: 38px; height: 38px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem;
+}
+.stat-income .stat-icon { background: #e3f5e9; color: #1a7f37; }
 .stat-income .stat-value { color: #1a7f37; }
+.stat-expense .stat-icon { background: #fde8e8; color: #cf222e; }
 .stat-expense .stat-value { color: #cf222e; }
-.stat-net .stat-value { color: #0969da; }
+.stat-net .stat-icon { background: #e8eefd; color: #2b59d9; }
+.stat-net .stat-value { color: #2b59d9; }
 
 .data-table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; }
 .amt-income { color: #1a7f37; }
 .amt-expense { color: #cf222e; }
-.data-table th, .data-table td { text-align: left; padding: 0.5rem; border-bottom: 1px solid #e1e4e8; font-size: 0.9rem; }
+.data-table th {
+  text-align: left;
+  padding: 0.6rem 0.5rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #8a93a8;
+  border-bottom: 1px solid #e4e7ef;
+}
+.data-table td { text-align: left; padding: 0.55rem 0.5rem; border-bottom: 1px solid #eef0f5; font-size: 0.9rem; }
 .row-income td:nth-child(3) { color: #1a7f37; }
 .row-expense td:nth-child(3) { color: #cf222e; }
 
 .upload-form, .filter-form { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin-top: 0.5rem; }
 .inline-form { display: flex; gap: 0.4rem; align-items: center; }
 .inline-form input[type="text"] { width: 130px; padding: 0.25rem; }
-.remember-label { font-size: 0.75rem; color: #7b8794; display: flex; align-items: center; gap: 0.2rem; }
+.remember-label { font-size: 0.75rem; color: #8a93a8; display: flex; align-items: center; gap: 0.2rem; }
 
 input, select, button {
-  padding: 0.45rem 0.7rem;
-  border-radius: 6px;
-  border: 1px solid #cbd2d9;
-  font-size: 0.9rem;
+  padding: 0.5rem 0.8rem;
+  border-radius: 8px;
+  border: 1px solid #dde1ec;
+  font-size: 0.88rem;
 }
 button {
-  background: #0969da;
+  background: #5b8def;
   color: #fff;
   border: none;
   cursor: pointer;
+  font-weight: 600;
 }
-button:hover { background: #0757b8; }
+button:hover { background: #4877d6; }
 
 .link-button {
   background: none;
-  color: #0969da;
+  color: #5b8def;
   border: none;
   padding: 0;
   text-decoration: underline;
@@ -80,6 +164,6 @@ button:hover { background: #0757b8; }
 .link-button.danger { color: #cf222e; }
 
 .flash-stack { margin-bottom: 1rem; }
-.flash { padding: 0.6rem 1rem; border-radius: 6px; margin-bottom: 0.5rem; font-size: 0.9rem; }
-.flash-success { background: #dafbe1; color: #1a7f37; }
-.flash-error { background: #ffebe9; color: #cf222e; }
+.flash { padding: 0.65rem 1rem; border-radius: 8px; margin-bottom: 0.5rem; font-size: 0.9rem; }
+.flash-success { background: #e3f5e9; color: #1a7f37; }
+.flash-error { background: #fde8e8; color: #cf222e; }
