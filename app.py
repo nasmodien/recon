@@ -3,7 +3,7 @@ from pathlib import Path
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 
 from db import get_connection, init_db
-from parser import parse_statement_csv, categorize
+from parser import parse_statement_csv, parse_statement_pdf, categorize
 
 BASE_DIR = Path(__file__).parent
 
@@ -73,61 +73,79 @@ def index():
 
 @app.route("/upload", methods=["POST"])
 def upload():
-    file = request.files.get("statement")
-    if not file or file.filename == "":
-        flash("Please choose a CSV file to upload.", "error")
-        return redirect(url_for("index"))
-
-    if not file.filename.lower().endswith(".csv"):
-        flash("Only CSV files are supported right now.", "error")
-        return redirect(url_for("index"))
-
-    try:
-        records = parse_statement_csv(file.stream)
-    except ValueError as exc:
-        flash(str(exc), "error")
-        return redirect(url_for("index"))
-
-    if not records:
-        flash("No transactions could be parsed from that file.", "error")
+    files = [f for f in request.files.getlist("statement") if f and f.filename]
+    if not files:
+        flash("Please choose one or more CSV or PDF files to upload.", "error")
         return redirect(url_for("index"))
 
     conn = get_connection()
     cur = conn.cursor()
-
     cur.execute("SELECT keyword, category FROM rules")
     rules = [(r["keyword"], r["category"]) for r in cur.fetchall()]
 
-    cur.execute(
-        "INSERT INTO statements (filename) VALUES (%s) RETURNING id", (file.filename,)
-    )
-    statement_id = cur.fetchone()["id"]
+    imported_files = 0
+    imported_txns = 0
+    errors = []
 
-    for rec in records:
-        category = categorize(rec["description"], rules)
-        if category == "Uncategorized" and rec["type"] == "income":
-            category = "Income"
+    for file in files:
+        name_lower = file.filename.lower()
+        try:
+            if name_lower.endswith(".csv"):
+                records = parse_statement_csv(file.stream)
+            elif name_lower.endswith(".pdf"):
+                records = parse_statement_pdf(file.stream)
+            else:
+                errors.append(f"{file.filename}: unsupported file type.")
+                continue
+        except ValueError as exc:
+            errors.append(f"{file.filename}: {exc}")
+            continue
+
+        if not records:
+            errors.append(f"{file.filename}: no transactions could be parsed.")
+            continue
+
         cur.execute(
-            """
-            INSERT INTO transactions (statement_id, date, description, amount, type, category)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            """,
-            (
-                statement_id,
-                rec["date"],
-                rec["description"],
-                rec["amount"],
-                rec["type"],
-                category,
-            ),
+            "INSERT INTO statements (filename) VALUES (%s) RETURNING id",
+            (file.filename,),
         )
+        statement_id = cur.fetchone()["id"]
+
+        for rec in records:
+            category = categorize(rec["description"], rules)
+            if category == "Uncategorized" and rec["type"] == "income":
+                category = "Income"
+            cur.execute(
+                """
+                INSERT INTO transactions (statement_id, date, description, amount, type, category)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    statement_id,
+                    rec["date"],
+                    rec["description"],
+                    rec["amount"],
+                    rec["type"],
+                    category,
+                ),
+            )
+
+        imported_files += 1
+        imported_txns += len(records)
 
     conn.commit()
     cur.close()
     conn.close()
 
-    flash(f"Imported {len(records)} transactions from {file.filename}.", "success")
-    return redirect(url_for("transactions"))
+    if imported_files:
+        flash(
+            f"Imported {imported_txns} transactions from {imported_files} statement(s).",
+            "success",
+        )
+    for err in errors:
+        flash(err, "error")
+
+    return redirect(url_for("transactions") if imported_files else url_for("index"))
 
 
 @app.route("/transactions")

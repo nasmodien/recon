@@ -1,3 +1,5 @@
+import re
+
 import pandas as pd
 
 DATE_CANDIDATES = ["date", "transaction date", "posted date", "value date"]
@@ -5,6 +7,9 @@ DESC_CANDIDATES = ["description", "narrative", "details", "memo", "particulars"]
 AMOUNT_CANDIDATES = ["amount", "value"]
 DEBIT_CANDIDATES = ["debit", "withdrawal", "money out"]
 CREDIT_CANDIDATES = ["credit", "deposit", "money in"]
+
+LINE_DATE_RE = re.compile(r"^(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}|\d{4}-\d{2}-\d{2})")
+LINE_AMOUNT_RE = re.compile(r"-?\d[\d,]*\.\d{2}")
 
 
 def _find_column(columns, candidates):
@@ -19,8 +24,7 @@ def _find_column(columns, candidates):
     return None
 
 
-def parse_statement_csv(file_stream):
-    df = pd.read_csv(file_stream)
+def _parse_dataframe(df):
     df.columns = [str(c).strip() for c in df.columns]
     columns = list(df.columns)
 
@@ -31,9 +35,7 @@ def parse_statement_csv(file_stream):
     credit_col = _find_column(columns, CREDIT_CANDIDATES)
 
     if date_col is None or desc_col is None:
-        raise ValueError(
-            "Could not detect required columns (date, description) in CSV."
-        )
+        return []
 
     records = []
     for _, row in df.iterrows():
@@ -45,7 +47,7 @@ def parse_statement_csv(file_stream):
         amount = None
         if amount_col is not None:
             try:
-                amount = float(row[amount_col])
+                amount = float(str(row[amount_col]).replace(",", ""))
             except (ValueError, TypeError):
                 amount = None
         elif debit_col is not None or credit_col is not None:
@@ -69,18 +71,106 @@ def parse_statement_csv(file_stream):
     return records
 
 
+def parse_statement_csv(file_stream):
+    df = pd.read_csv(file_stream)
+    records = _parse_dataframe(df)
+    if not records:
+        raise ValueError(
+            "Could not detect required columns (date, description) in CSV."
+        )
+    return records
+
+
+def parse_statement_pdf(file_stream):
+    import pdfplumber
+
+    records = []
+    with pdfplumber.open(file_stream) as pdf:
+        for page in pdf.pages:
+            for table in page.extract_tables() or []:
+                if not table or len(table) < 2:
+                    continue
+                header, *rows = table
+                header = [str(c).strip() if c else f"col{i}" for i, c in enumerate(header)]
+                try:
+                    df = pd.DataFrame(rows, columns=header)
+                except ValueError:
+                    continue
+                records.extend(_parse_dataframe(df))
+
+    if records:
+        return records
+
+    with pdfplumber.open(file_stream) as pdf:
+        for page in pdf.pages:
+            text = page.extract_text() or ""
+            for line in text.split("\n"):
+                rec = _parse_statement_line(line)
+                if rec:
+                    records.append(rec)
+
+    if not records:
+        raise ValueError(
+            "Could not find any transactions in that PDF. It may be a scanned "
+            "image or use a layout this app doesn't recognize yet."
+        )
+    return records
+
+
+def _parse_statement_line(line):
+    line = line.strip()
+    date_match = LINE_DATE_RE.match(line)
+    if not date_match:
+        return None
+
+    rest = line[date_match.end():].strip()
+    amounts = LINE_AMOUNT_RE.findall(rest)
+    if not amounts:
+        return None
+
+    # Many statements list amount followed by a running balance; prefer the
+    # second-to-last number when there's more than one candidate.
+    amount_str = amounts[-2] if len(amounts) >= 2 else amounts[-1]
+    try:
+        amount = float(amount_str.replace(",", ""))
+    except ValueError:
+        return None
+
+    desc = LINE_AMOUNT_RE.sub("", rest).strip()
+    desc = re.sub(r"\s{2,}", " ", desc)
+    if not desc:
+        return None
+
+    txn_type = "income" if amount >= 0 else "expense"
+    if re.search(r"\bDR\b", rest, re.IGNORECASE):
+        txn_type = "expense"
+    elif re.search(r"\bCR\b", rest, re.IGNORECASE):
+        txn_type = "income"
+
+    return {
+        "date": _normalize_date(date_match.group(0)),
+        "description": desc,
+        "amount": abs(amount),
+        "type": txn_type,
+    }
+
+
 def _safe_float(val):
     try:
         if val is None or str(val).strip() == "" or str(val).lower() == "nan":
             return 0.0
-        return float(val)
+        return float(str(val).replace(",", ""))
     except (ValueError, TypeError):
         return 0.0
 
 
+ISO_DATE_RE = re.compile(r"^\d{4}-\d{1,2}-\d{1,2}$")
+
+
 def _normalize_date(date_val):
     try:
-        return pd.to_datetime(date_val, dayfirst=True).strftime("%Y-%m-%d")
+        dayfirst = not ISO_DATE_RE.match(str(date_val).strip())
+        return pd.to_datetime(date_val, dayfirst=dayfirst).strftime("%Y-%m-%d")
     except (ValueError, TypeError):
         return date_val
 
