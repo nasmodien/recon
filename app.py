@@ -3,7 +3,12 @@ from pathlib import Path
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 
 from db import get_connection, init_db
-from parser import parse_statement_csv, parse_statement_pdf, categorize
+from parser import (
+    parse_statement_csv,
+    parse_statement_pdf,
+    parse_statement_xlsx,
+    categorize,
+)
 
 BASE_DIR = Path(__file__).parent
 
@@ -94,6 +99,8 @@ def upload():
                 records = parse_statement_csv(file.stream)
             elif name_lower.endswith(".pdf"):
                 records = parse_statement_pdf(file.stream)
+            elif name_lower.endswith(".xlsx") or name_lower.endswith(".xls"):
+                records = parse_statement_xlsx(file.stream)
             else:
                 errors.append(f"{file.filename}: unsupported file type.")
                 continue
@@ -112,13 +119,13 @@ def upload():
         statement_id = cur.fetchone()["id"]
 
         for rec in records:
-            category = categorize(rec["description"], rules)
+            category = rec.get("category") or categorize(rec["description"], rules)
             if category == "Uncategorized" and rec["type"] == "income":
                 category = "Income"
             cur.execute(
                 """
-                INSERT INTO transactions (statement_id, date, description, amount, type, category)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO transactions (statement_id, date, description, amount, type, category, customer_code)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     statement_id,
@@ -127,6 +134,7 @@ def upload():
                     rec["amount"],
                     rec["type"],
                     category,
+                    rec.get("customer_code"),
                 ),
             )
 
@@ -249,6 +257,135 @@ def delete_statement(statement_id):
     conn.close()
     flash("Statement and its transactions removed.", "success")
     return redirect(url_for("index"))
+
+
+@app.route("/customers")
+def customers():
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT
+            customer_code,
+            COALESCE(SUM(amount) FILTER (WHERE type = 'income'), 0) AS received,
+            COALESCE(SUM(amount) FILTER (WHERE type = 'expense'), 0) AS paid,
+            COUNT(*) AS txn_count,
+            MIN(date) AS first_date,
+            MAX(date) AS last_date
+        FROM transactions
+        WHERE customer_code IS NOT NULL
+        GROUP BY customer_code
+        ORDER BY (COALESCE(SUM(amount) FILTER (WHERE type = 'income'), 0)
+                  + COALESCE(SUM(amount) FILTER (WHERE type = 'expense'), 0)) DESC
+        """
+    )
+    customer_rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return render_template("customers.html", customers=customer_rows)
+
+
+@app.route("/customers/<code>")
+def customer_detail(code):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT * FROM transactions WHERE customer_code = %s ORDER BY date, id",
+        (code,),
+    )
+    txns = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    if not txns:
+        flash(f"No transactions found for customer code {code}.", "error")
+        return redirect(url_for("customers"))
+
+    received = sum(float(t["amount"]) for t in txns if t["type"] == "income")
+    paid = sum(float(t["amount"]) for t in txns if t["type"] == "expense")
+
+    return render_template(
+        "customer_detail.html",
+        code=code,
+        transactions=txns,
+        received=received,
+        paid=paid,
+        net=received - paid,
+    )
+
+
+@app.route("/payments")
+def payments():
+    customer_code = request.args.get("customer_code") or None
+    type_filter = request.args.get("type") or None
+    category_filter = request.args.get("category") or None
+    start_date = request.args.get("start_date") or None
+    end_date = request.args.get("end_date") or None
+
+    query = "SELECT date, description, amount, type, category, customer_code FROM transactions WHERE 1=1"
+    params = []
+    if customer_code:
+        query += " AND customer_code = %s"
+        params.append(customer_code)
+    if type_filter:
+        query += " AND type = %s"
+        params.append(type_filter)
+    if category_filter:
+        query += " AND category = %s"
+        params.append(category_filter)
+    if start_date:
+        query += " AND date >= %s"
+        params.append(start_date)
+    if end_date:
+        query += " AND date <= %s"
+        params.append(end_date)
+    query += " ORDER BY date, customer_code"
+
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(query, params)
+    rows = cur.fetchall()
+
+    cur.execute(
+        "SELECT DISTINCT customer_code FROM transactions WHERE customer_code IS NOT NULL ORDER BY customer_code"
+    )
+    customer_codes = [r["customer_code"] for r in cur.fetchall()]
+
+    cur.execute("SELECT DISTINCT category FROM transactions ORDER BY category")
+    categories = [r["category"] for r in cur.fetchall()]
+
+    cur.close()
+    conn.close()
+
+    timeline = [
+        {
+            "date": row["date"].isoformat(),
+            "amount": float(row["amount"]) if row["type"] == "income" else -float(row["amount"]),
+            "type": row["type"],
+            "description": row["description"],
+            "category": row["category"],
+            "customer_code": row["customer_code"],
+        }
+        for row in rows
+    ]
+
+    received_total = sum(p["amount"] for p in timeline if p["type"] == "income")
+    paid_total = -sum(p["amount"] for p in timeline if p["type"] == "expense")
+
+    return render_template(
+        "payments.html",
+        payments=rows,
+        timeline=timeline,
+        customer_codes=customer_codes,
+        categories=categories,
+        customer_code=customer_code,
+        type_filter=type_filter,
+        category_filter=category_filter,
+        start_date=start_date,
+        end_date=end_date,
+        received_total=received_total,
+        paid_total=paid_total,
+    )
 
 
 @app.route("/rules")

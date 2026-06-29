@@ -17,8 +17,13 @@ CREATE TABLE IF NOT EXISTS transactions (
     description TEXT NOT NULL,
     amount NUMERIC NOT NULL,
     type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
-    category TEXT NOT NULL DEFAULT 'Uncategorized'
+    category TEXT NOT NULL DEFAULT 'Uncategorized',
+    customer_code TEXT
 );
+
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS customer_code TEXT;
+CREATE INDEX IF NOT EXISTS idx_transactions_customer_code ON transactions (customer_code);
+CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions (date);
 
 CREATE TABLE IF NOT EXISTS rules (
     id SERIAL PRIMARY KEY,

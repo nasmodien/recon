@@ -4,9 +4,9 @@
 
 <section class="card">
   <h2>Upload bank statements</h2>
-  <p class="hint">CSV (with a date, description, and amount column, or separate debit/credit columns) or PDF bank statements. Select multiple files to import them all at once.</p>
+  <p class="hint">CSV, PDF, or Excel (.xlsx) bank statements / bookkeeping workbooks. Excel workbooks with a "Transactions" sheet (Date, Description, Counterparty Code, Category, Debit, Credit columns) are read directly, preserving customer codes and categories. Select multiple files to import them all at once.</p>
   <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data" class="upload-form">
-    <input type="file" name="statement" accept=".csv,.pdf" multiple required>
+    <input type="file" name="statement" accept=".csv,.pdf,.xlsx,.xls" multiple required>
     <button type="submit">Import</button>
   </form>
 </section>

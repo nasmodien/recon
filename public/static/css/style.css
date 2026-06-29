@@ -43,6 +43,8 @@ body {
 .stat-net .stat-value { color: #0969da; }
 
 .data-table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; }
+.amt-income { color: #1a7f37; }
+.amt-expense { color: #cf222e; }
 .data-table th, .data-table td { text-align: left; padding: 0.5rem; border-bottom: 1px solid #e1e4e8; font-size: 0.9rem; }
 .row-income td:nth-child(3) { color: #1a7f37; }
 .row-expense td:nth-child(3) { color: #cf222e; }
