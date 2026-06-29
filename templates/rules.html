@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Rules - Bank Recon{% endblock %}
+{% block content %}
+
+<section class="card">
+  <h2>Categorization Rules</h2>
+  <p class="hint">Transactions whose description contains a keyword are auto-assigned to its category on import.</p>
+  <form action="{{ url_for('add_rule') }}" method="post" class="upload-form">
+    <input type="text" name="keyword" placeholder="keyword (e.g. netflix)" required>
+    <input type="text" name="category" placeholder="category (e.g. Subscriptions)" required>
+    <button type="submit">Add Rule</button>
+  </form>
+
+  <table class="data-table">
+    <thead><tr><th>Keyword</th><th>Category</th><th></th></tr></thead>
+    <tbody>
+      {% for r in rules %}
+      <tr>
+        <td>{{ r.keyword }}</td>
+        <td>{{ r.category }}</td>
+        <td>
+          <form action="{{ url_for('delete_rule', rule_id=r.id) }}" method="post" onsubmit="return confirm('Delete this rule?');">
+            <button type="submit" class="link-button danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="3">No rules yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+{% endblock %}

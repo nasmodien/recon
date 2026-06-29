@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Bank Recon{% endblock %}
+{% block content %}
+
+<section class="card">
+  <h2>Upload a bank statement</h2>
+  <p class="hint">CSV with a date, description, and amount column (or separate debit/credit columns).</p>
+  <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data" class="upload-form">
+    <input type="file" name="statement" accept=".csv" required>
+    <button type="submit">Import</button>
+  </form>
+</section>
+
+<section class="summary-grid">
+  <div class="card stat stat-income">
+    <span class="stat-label">Total Income</span>
+    <span class="stat-value">{{ "%.2f"|format(income_total) }}</span>
+  </div>
+  <div class="card stat stat-expense">
+    <span class="stat-label">Total Expenses</span>
+    <span class="stat-value">{{ "%.2f"|format(expense_total) }}</span>
+  </div>
+  <div class="card stat stat-net">
+    <span class="stat-label">Net</span>
+    <span class="stat-value">{{ "%.2f"|format(net_total) }}</span>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Expenses by Category</h2>
+  {% if by_category %}
+  <table class="data-table">
+    <thead><tr><th>Category</th><th>Total</th></tr></thead>
+    <tbody>
+      {% for row in by_category %}
+      <tr>
+        <td><a href="{{ url_for('transactions', category=row.category) }}">{{ row.category }}</a></td>
+        <td>{{ "%.2f"|format(row.total) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="hint">No expenses yet. Upload a statement to get started.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Monthly Breakdown</h2>
+  {% if by_month %}
+  <table class="data-table">
+    <thead><tr><th>Month</th><th>Type</th><th>Total</th></tr></thead>
+    <tbody>
+      {% for row in by_month %}
+      <tr>
+        <td>{{ row.month }}</td>
+        <td>{{ row.type }}</td>
+        <td>{{ "%.2f"|format(row.total) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="hint">No data yet.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Imported Statements</h2>
+  {% if statements %}
+  <table class="data-table">
+    <thead><tr><th>File</th><th>Uploaded</th><th></th></tr></thead>
+    <tbody>
+      {% for s in statements %}
+      <tr>
+        <td><a href="{{ url_for('transactions', statement_id=s.id) }}">{{ s.filename }}</a></td>
+        <td>{{ s.uploaded_at }}</td>
+        <td>
+          <form action="{{ url_for('delete_statement', statement_id=s.id) }}" method="post" onsubmit="return confirm('Delete this statement and all its transactions?');">
+            <button type="submit" class="link-button danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="hint">No statements uploaded yet.</p>
+  {% endif %}
+</section>
+
+{% endblock %}

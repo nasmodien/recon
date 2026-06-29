@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Transactions - Bank Recon{% endblock %}
+{% block content %}
+
+<section class="card">
+  <h2>Transactions</h2>
+  <form method="get" class="filter-form">
+    <select name="statement_id">
+      <option value="">All statements</option>
+      {% for s in statements %}
+      <option value="{{ s.id }}" {% if statement_id and statement_id|int == s.id %}selected{% endif %}>{{ s.filename }}</option>
+      {% endfor %}
+    </select>
+    <select name="type">
+      <option value="">All types</option>
+      <option value="income" {% if type_filter == 'income' %}selected{% endif %}>Income</option>
+      <option value="expense" {% if type_filter == 'expense' %}selected{% endif %}>Expense</option>
+    </select>
+    <select name="category">
+      <option value="">All categories</option>
+      {% for c in categories %}
+      <option value="{{ c }}" {% if category_filter == c %}selected{% endif %}>{{ c }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit">Filter</button>
+    <a href="{{ url_for('transactions') }}" class="link-button">Clear</a>
+  </form>
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Date</th><th>Description</th><th>Type</th><th>Amount</th><th>Category</th><th>Statement</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in transactions %}
+      <tr class="{{ 'row-income' if t.type == 'income' else 'row-expense' }}">
+        <td>{{ t.date }}</td>
+        <td>{{ t.description }}</td>
+        <td>{{ t.type }}</td>
+        <td>{{ "%.2f"|format(t.amount) }}</td>
+        <td>
+          <form action="{{ url_for('update_category', txn_id=t.id) }}" method="post" class="inline-form">
+            <input type="text" name="category" value="{{ t.category }}">
+            <label class="remember-label"><input type="checkbox" name="remember" value="1"> remember</label>
+            <button type="submit" class="link-button">Save</button>
+          </form>
+        </td>
+        <td>{{ t.filename }}</td>
+        <td>
+          <form action="{{ url_for('delete_transaction', txn_id=t.id) }}" method="post" onsubmit="return confirm('Delete this transaction?');">
+            <button type="submit" class="link-button danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7">No transactions found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+{% endblock %}
