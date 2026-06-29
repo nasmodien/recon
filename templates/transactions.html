@@ -39,7 +39,7 @@
         <td>{{ t.date }}</td>
         <td>{{ t.description }}</td>
         <td>{{ t.type }}</td>
-        <td>{{ "%.2f"|format(t.amount) }}</td>
+        <td>{{ t.amount|currency }}</td>
         <td>
           <form action="{{ url_for('update_category', txn_id=t.id) }}" method="post" class="inline-form">
             <input type="text" name="category" value="{{ t.category }}">

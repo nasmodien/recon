@@ -126,6 +126,36 @@ def _normalize_date(date_val):
         return date_val
 
 
+def _normalize_code(code):
+    return str(code).strip().upper().replace(" ", "")
+
+
+def parse_client_directory(file_path):
+    try:
+        xls = pd.ExcelFile(file_path)
+    except Exception as exc:
+        raise ValueError(f"Could not read client directory: {exc}") from exc
+
+    clients = {}
+    for sheet_name in xls.sheet_names:
+        df = xls.parse(sheet_name)
+        df.columns = [str(c).strip() for c in df.columns]
+        code_col = _find_column(df.columns, ["cu number", "customer code", "counterparty code"])
+        name_col = _find_column(df.columns, ["name"])
+        if code_col is None or name_col is None:
+            continue
+        for _, row in df.iterrows():
+            code_val = row.get(code_col)
+            name_val = row.get(name_col)
+            if pd.isna(code_val) or pd.isna(name_val):
+                continue
+            code = _normalize_code(code_val)
+            name = " ".join(str(name_val).split())
+            if code and name:
+                clients[code] = name
+    return clients
+
+
 def categorize(description, rules):
     desc_lower = description.lower()
     for keyword, category in rules:

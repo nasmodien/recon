@@ -4,21 +4,24 @@
 {% block content %}
 
 <section class="card">
-  <h2>Customer {{ code }}</h2>
+  <h2>Customer {{ code }}{% if client_name %} &mdash; {{ client_name }}{% endif %}</h2>
   <p class="hint"><a href="{{ url_for('customers') }}">&larr; back to all customers</a> · <a href="{{ url_for('payments', customer_code=code) }}">view on payments timeline</a></p>
 
   <div class="summary-grid">
     <div class="card stat stat-income">
+      <span class="stat-icon">&#8593;</span>
       <span class="stat-label">Received</span>
-      <span class="stat-value">{{ "%.2f"|format(received) }}</span>
+      <span class="stat-value">{{ received|currency }}</span>
     </div>
     <div class="card stat stat-expense">
+      <span class="stat-icon">&#8595;</span>
       <span class="stat-label">Paid</span>
-      <span class="stat-value">{{ "%.2f"|format(paid) }}</span>
+      <span class="stat-value">{{ paid|currency }}</span>
     </div>
     <div class="card stat stat-net">
+      <span class="stat-icon">&#8776;</span>
       <span class="stat-label">Net</span>
-      <span class="stat-value">{{ "%.2f"|format(net) }}</span>
+      <span class="stat-value">{{ net|currency }}</span>
     </div>
   </div>
 </section>
@@ -33,7 +36,7 @@
         <td>{{ t.date }}</td>
         <td>{{ t.description }}</td>
         <td>{{ t.type }}</td>
-        <td>{{ "%.2f"|format(t.amount) }}</td>
+        <td>{{ t.amount|currency }}</td>
         <td>{{ t.category }}</td>
       </tr>
       {% endfor %}

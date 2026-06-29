@@ -7,8 +7,11 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS statements (
     id SERIAL PRIMARY KEY,
     filename TEXT NOT NULL,
-    uploaded_at TIMESTAMP NOT NULL DEFAULT NOW()
+    uploaded_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    file_hash TEXT
 );
+
+ALTER TABLE statements ADD COLUMN IF NOT EXISTS file_hash TEXT;
 
 CREATE TABLE IF NOT EXISTS transactions (
     id SERIAL PRIMARY KEY,
@@ -29,6 +32,11 @@ CREATE TABLE IF NOT EXISTS rules (
     id SERIAL PRIMARY KEY,
     keyword TEXT NOT NULL UNIQUE,
     category TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS clients (
+    customer_code TEXT PRIMARY KEY,
+    name TEXT NOT NULL
 );
 """
 

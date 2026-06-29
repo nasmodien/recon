@@ -11,16 +11,17 @@
   <table class="data-table">
     <thead>
       <tr>
-        <th>Customer Code</th><th>Received</th><th>Paid</th><th>Net</th><th>Transactions</th><th>First</th><th>Last</th><th></th>
+        <th>Customer Code</th><th>Name</th><th>Received</th><th>Paid</th><th>Net</th><th>Transactions</th><th>First</th><th>Last</th><th></th>
       </tr>
     </thead>
     <tbody>
       {% for c in customers %}
       <tr>
         <td>{{ c.customer_code }}</td>
-        <td class="amt-income">{{ "%.2f"|format(c.received) }}</td>
-        <td class="amt-expense">{{ "%.2f"|format(c.paid) }}</td>
-        <td>{{ "%.2f"|format(c.received - c.paid) }}</td>
+        <td>{{ c.client_name or "—" }}</td>
+        <td class="amt-income">{{ c.received|currency }}</td>
+        <td class="amt-expense">{{ c.paid|currency }}</td>
+        <td>{{ (c.received - c.paid)|currency }}</td>
         <td>{{ c.txn_count }}</td>
         <td>{{ c.first_date }}</td>
         <td>{{ c.last_date }}</td>

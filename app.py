@@ -1,30 +1,66 @@
+import hashlib
 from pathlib import Path
 
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 
 from db import get_connection, init_db
-from parser import parse_statement_xlsx, categorize
+from parser import parse_statement_xlsx, parse_client_directory, categorize
 
 BASE_DIR = Path(__file__).parent
 STATEMENT_FILE = BASE_DIR / "data" / "bank_statement.xlsx"
+CLIENT_DIRECTORY_FILE = BASE_DIR / "data" / "client_directory.xlsx"
 
 app = Flask(__name__, static_folder=str(BASE_DIR / "public" / "static"))
 app.secret_key = "recon-dev-secret"
+
+
+@app.template_filter("currency")
+def currency_filter(value):
+    return f"R {float(value):,.2f}"
+
+
+def _file_hash(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _load_client_directory():
+    if not CLIENT_DIRECTORY_FILE.exists():
+        return 0
+    clients = parse_client_directory(CLIENT_DIRECTORY_FILE)
+    conn = get_connection()
+    cur = conn.cursor()
+    for code, name in clients.items():
+        cur.execute(
+            """
+            INSERT INTO clients (customer_code, name) VALUES (%s, %s)
+            ON CONFLICT (customer_code) DO UPDATE SET name = excluded.name
+            """,
+            (code, name),
+        )
+    conn.commit()
+    cur.close()
+    conn.close()
+    return len(clients)
 
 
 def _load_statement_file(replace=False):
     conn = get_connection()
     cur = conn.cursor()
 
+    current_hash = _file_hash(STATEMENT_FILE)
+
     if replace:
         cur.execute("DELETE FROM transactions")
         cur.execute("DELETE FROM statements")
     else:
-        cur.execute("SELECT COUNT(*) AS count FROM statements")
-        if cur.fetchone()["count"] > 0:
+        cur.execute("SELECT file_hash FROM statements ORDER BY id DESC LIMIT 1")
+        row = cur.fetchone()
+        if row is not None and row["file_hash"] == current_hash:
             cur.close()
             conn.close()
             return None
+        cur.execute("DELETE FROM transactions")
+        cur.execute("DELETE FROM statements")
 
     records = parse_statement_xlsx(STATEMENT_FILE)
 
@@ -32,8 +68,8 @@ def _load_statement_file(replace=False):
     rules = [(r["keyword"], r["category"]) for r in cur.fetchall()]
 
     cur.execute(
-        "INSERT INTO statements (filename) VALUES (%s) RETURNING id",
-        (STATEMENT_FILE.name,),
+        "INSERT INTO statements (filename, file_hash) VALUES (%s, %s) RETURNING id",
+        (STATEMENT_FILE.name, current_hash),
     )
     statement_id = cur.fetchone()["id"]
 
@@ -65,6 +101,7 @@ def _load_statement_file(replace=False):
 
 init_db()
 _load_statement_file()
+_load_client_directory()
 
 
 @app.route("/")
@@ -129,6 +166,7 @@ def index():
 def reload_statement_file():
     try:
         count = _load_statement_file(replace=True)
+        _load_client_directory()
     except ValueError as exc:
         flash(str(exc), "error")
         return redirect(url_for("index"))
@@ -247,17 +285,19 @@ def customers():
     cur.execute(
         """
         SELECT
-            customer_code,
-            COALESCE(SUM(amount) FILTER (WHERE type = 'income'), 0) AS received,
-            COALESCE(SUM(amount) FILTER (WHERE type = 'expense'), 0) AS paid,
+            t.customer_code,
+            c.name AS client_name,
+            COALESCE(SUM(t.amount) FILTER (WHERE t.type = 'income'), 0) AS received,
+            COALESCE(SUM(t.amount) FILTER (WHERE t.type = 'expense'), 0) AS paid,
             COUNT(*) AS txn_count,
-            MIN(date) AS first_date,
-            MAX(date) AS last_date
-        FROM transactions
-        WHERE customer_code IS NOT NULL
-        GROUP BY customer_code
-        ORDER BY (COALESCE(SUM(amount) FILTER (WHERE type = 'income'), 0)
-                  + COALESCE(SUM(amount) FILTER (WHERE type = 'expense'), 0)) DESC
+            MIN(t.date) AS first_date,
+            MAX(t.date) AS last_date
+        FROM transactions t
+        LEFT JOIN clients c ON UPPER(t.customer_code) = c.customer_code
+        WHERE t.customer_code IS NOT NULL
+        GROUP BY t.customer_code, c.name
+        ORDER BY (COALESCE(SUM(t.amount) FILTER (WHERE t.type = 'income'), 0)
+                  + COALESCE(SUM(t.amount) FILTER (WHERE t.type = 'expense'), 0)) DESC
         """
     )
     customer_rows = cur.fetchall()
@@ -275,6 +315,9 @@ def customer_detail(code):
         (code,),
     )
     txns = cur.fetchall()
+
+    cur.execute("SELECT name FROM clients WHERE customer_code = %s", (code.upper(),))
+    client_row = cur.fetchone()
     cur.close()
     conn.close()
 
@@ -288,6 +331,7 @@ def customer_detail(code):
     return render_template(
         "customer_detail.html",
         code=code,
+        client_name=client_row["name"] if client_row else None,
         transactions=txns,
         received=received,
         paid=paid,

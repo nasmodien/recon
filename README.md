@@ -4,12 +4,16 @@ A small Flask app for reconciling bank statements: reads transactions directly f
 
 ## Data source
 
-The app reads exclusively from `data/bank_statement.xlsx`, a workbook committed to this repo. There is no upload feature. To update the data, replace that file and redeploy (or re-run locally), then click **Reload from file** on the dashboard to re-import it — this replaces all existing transactions.
+The app reads exclusively from `data/bank_statement.xlsx`, a workbook committed to this repo. There is no upload feature. To update the data, replace that file and redeploy (or re-run locally) — the app detects the file changed (by content hash) and automatically re-imports it on the next startup. You can also click **Reload from file** on the dashboard to force a re-import at any time; this replaces all existing transactions.
 
 The workbook is expected to have a `Transactions` sheet (or the first sheet) with columns for date, description, and either an amount column or separate debit/credit columns. Optional columns:
 
-- A counterparty/customer code column (e.g. "Counterparty Code", "Customer Code", "CU Number") used to group transactions by customer.
+- A counterparty/customer code column (e.g. "Counterparty Code", "Customer Code", "CU Number"), or a `Cu<number>` code embedded in the description text — either way it's used to group transactions by customer.
 - A `Category` column, used as-is if present; otherwise transactions are auto-categorized using keyword rules.
+
+### Client directory
+
+`data/client_directory.xlsx` maps CU numbers to client names (any sheet with a "CU Number"/"Customer Code" column and a "Name" column is read). It's loaded automatically alongside the statement file and used to show client names next to customer codes on the **Customers** pages. Replace this file the same way as the statement workbook to update it.
 
 ## Local setup
 
