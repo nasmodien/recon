@@ -167,3 +167,20 @@ button:hover { background: #4877d6; }
 .flash { padding: 0.65rem 1rem; border-radius: 8px; margin-bottom: 0.5rem; font-size: 0.9rem; }
 .flash-success { background: #e3f5e9; color: #1a7f37; }
 .flash-error { background: #fde8e8; color: #cf222e; }
+
+.chart-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) 1fr;
+  gap: 1.5rem;
+  align-items: center;
+}
+.chart-box { position: relative; height: 280px; }
+.chart-box-wide { height: 320px; }
+.chart-legend-table { margin-top: 0; max-height: 280px; overflow-y: auto; display: block; }
+.chart-legend-table thead, .chart-legend-table tbody { display: block; }
+.chart-legend-table tr { display: flex; justify-content: space-between; }
+.chart-legend-table th, .chart-legend-table td { flex: 1; }
+
+@media (max-width: 720px) {
+  .chart-row { grid-template-columns: 1fr; }
+}

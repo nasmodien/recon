@@ -32,17 +32,22 @@
 <section class="card">
   <h2>Expenses by Category</h2>
   {% if by_category %}
-  <table class="data-table">
-    <thead><tr><th>Category</th><th>Total</th></tr></thead>
-    <tbody>
-      {% for row in by_category %}
-      <tr>
-        <td><a href="{{ url_for('transactions', category=row.category) }}">{{ row.category }}</a></td>
-        <td>{{ row.total|currency }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="chart-row">
+    <div class="chart-box">
+      <canvas id="category-chart"></canvas>
+    </div>
+    <table class="data-table chart-legend-table">
+      <thead><tr><th>Category</th><th>Total</th></tr></thead>
+      <tbody>
+        {% for row in by_category %}
+        <tr>
+          <td><a href="{{ url_for('transactions', category=row.category) }}">{{ row.category }}</a></td>
+          <td>{{ row.total|currency }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
   {% else %}
   <p class="hint">No expenses yet. Reload from the data source to get started.</p>
   {% endif %}
@@ -51,18 +56,9 @@
 <section class="card">
   <h2>Monthly Breakdown</h2>
   {% if by_month %}
-  <table class="data-table">
-    <thead><tr><th>Month</th><th>Type</th><th>Total</th></tr></thead>
-    <tbody>
-      {% for row in by_month %}
-      <tr>
-        <td>{{ row.month }}</td>
-        <td>{{ row.type }}</td>
-        <td>{{ row.total|currency }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="chart-box chart-box-wide">
+    <canvas id="monthly-chart"></canvas>
+  </div>
   {% else %}
   <p class="hint">No data yet.</p>
   {% endif %}
@@ -86,5 +82,58 @@
   <p class="hint">No statement loaded yet.</p>
   {% endif %}
 </section>
+
+{% if by_category or by_month %}
+<script src="{{ url_for('static', filename='js/chart.umd.js') }}"></script>
+<script>
+  const palette = ['#5b8def', '#1a7f37', '#cf222e', '#f2994a', '#9b59b6', '#16a3b8', '#e67e22', '#2b59d9', '#8a93a8', '#e74c3c'];
+
+  {% if by_category %}
+  new Chart(document.getElementById('category-chart'), {
+    type: 'doughnut',
+    data: {
+      labels: {{ by_category|map(attribute='category')|list|tojson }},
+      datasets: [{
+        data: {{ by_category|map(attribute='total')|list|tojson }},
+        backgroundColor: palette,
+        borderWidth: 0,
+      }],
+    },
+    options: {
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
+    },
+  });
+  {% endif %}
+
+  {% if by_month %}
+  const monthlyRaw = {{ by_month|map(attribute='month')|list|tojson }};
+  const monthlyType = {{ by_month|map(attribute='type')|list|tojson }};
+  const monthlyTotal = {{ by_month|map(attribute='total')|list|tojson }};
+  const months = [...new Set(monthlyRaw)];
+  const byMonth = (type) => months.map(m => {
+    const idx = monthlyRaw.findIndex((mm, i) => mm === m && monthlyType[i] === type);
+    return idx === -1 ? 0 : monthlyTotal[idx];
+  });
+
+  new Chart(document.getElementById('monthly-chart'), {
+    type: 'bar',
+    data: {
+      labels: months,
+      datasets: [
+        { label: 'Income', data: byMonth('income'), backgroundColor: '#1a7f37', borderRadius: 4 },
+        { label: 'Expenses', data: byMonth('expense'), backgroundColor: '#cf222e', borderRadius: 4 },
+      ],
+    },
+    options: {
+      scales: {
+        x: { grid: { display: false } },
+        y: { beginAtZero: true, ticks: { callback: (v) => 'R ' + v.toLocaleString() } },
+      },
+      plugins: { legend: { position: 'bottom' } },
+    },
+  });
+  {% endif %}
+</script>
+{% endif %}
 
 {% endblock %}
