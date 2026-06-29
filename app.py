@@ -7,7 +7,7 @@ from parser import parse_statement_csv, categorize
 
 BASE_DIR = Path(__file__).parent
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder=str(BASE_DIR / "public" / "static"))
 app.secret_key = "recon-dev-secret"
 
 init_db()
