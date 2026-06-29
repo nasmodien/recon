@@ -6,8 +6,6 @@ from db import get_connection, init_db
 from parser import parse_statement_csv, categorize
 
 BASE_DIR = Path(__file__).parent
-UPLOAD_DIR = BASE_DIR / "uploads"
-UPLOAD_DIR.mkdir(exist_ok=True)
 
 app = Flask(__name__)
 app.secret_key = "recon-dev-secret"
@@ -18,44 +16,48 @@ init_db()
 @app.route("/")
 def index():
     conn = get_connection()
-    statements = conn.execute(
-        "SELECT * FROM statements ORDER BY uploaded_at DESC"
-    ).fetchall()
+    cur = conn.cursor()
 
-    totals = conn.execute(
+    cur.execute("SELECT * FROM statements ORDER BY uploaded_at DESC")
+    statements = cur.fetchall()
+
+    cur.execute(
         """
         SELECT type, COALESCE(SUM(amount), 0) AS total
         FROM transactions
         GROUP BY type
         """
-    ).fetchall()
+    )
     income_total = 0.0
     expense_total = 0.0
-    for row in totals:
+    for row in cur.fetchall():
         if row["type"] == "income":
-            income_total = row["total"]
+            income_total = float(row["total"])
         else:
-            expense_total = row["total"]
+            expense_total = float(row["total"])
 
-    by_category = conn.execute(
+    cur.execute(
         """
-        SELECT category, type, COALESCE(SUM(amount), 0) AS total
+        SELECT category, COALESCE(SUM(amount), 0) AS total
         FROM transactions
         WHERE type = 'expense'
         GROUP BY category
         ORDER BY total DESC
         """
-    ).fetchall()
+    )
+    by_category = cur.fetchall()
 
-    by_month = conn.execute(
+    cur.execute(
         """
-        SELECT strftime('%Y-%m', date) AS month, type, COALESCE(SUM(amount), 0) AS total
+        SELECT to_char(date, 'YYYY-MM') AS month, type, COALESCE(SUM(amount), 0) AS total
         FROM transactions
         GROUP BY month, type
         ORDER BY month
         """
-    ).fetchall()
+    )
+    by_month = cur.fetchall()
 
+    cur.close()
     conn.close()
 
     return render_template(
@@ -91,24 +93,24 @@ def upload():
         return redirect(url_for("index"))
 
     conn = get_connection()
-    rules = [
-        (r["keyword"], r["category"])
-        for r in conn.execute("SELECT keyword, category FROM rules").fetchall()
-    ]
+    cur = conn.cursor()
 
-    cur = conn.execute(
-        "INSERT INTO statements (filename) VALUES (?)", (file.filename,)
+    cur.execute("SELECT keyword, category FROM rules")
+    rules = [(r["keyword"], r["category"]) for r in cur.fetchall()]
+
+    cur.execute(
+        "INSERT INTO statements (filename) VALUES (%s) RETURNING id", (file.filename,)
     )
-    statement_id = cur.lastrowid
+    statement_id = cur.fetchone()["id"]
 
     for rec in records:
         category = categorize(rec["description"], rules)
         if category == "Uncategorized" and rec["type"] == "income":
             category = "Income"
-        conn.execute(
+        cur.execute(
             """
             INSERT INTO transactions (statement_id, date, description, amount, type, category)
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s)
             """,
             (
                 statement_id,
@@ -121,6 +123,7 @@ def upload():
         )
 
     conn.commit()
+    cur.close()
     conn.close()
 
     flash(f"Imported {len(records)} transactions from {file.filename}.", "success")
@@ -136,25 +139,28 @@ def transactions():
     query = "SELECT t.*, s.filename FROM transactions t JOIN statements s ON t.statement_id = s.id WHERE 1=1"
     params = []
     if statement_id:
-        query += " AND t.statement_id = ?"
+        query += " AND t.statement_id = %s"
         params.append(statement_id)
     if type_filter:
-        query += " AND t.type = ?"
+        query += " AND t.type = %s"
         params.append(type_filter)
     if category_filter:
-        query += " AND t.category = ?"
+        query += " AND t.category = %s"
         params.append(category_filter)
     query += " ORDER BY t.date DESC, t.id DESC"
 
     conn = get_connection()
-    rows = conn.execute(query, params).fetchall()
-    categories = [
-        r["category"]
-        for r in conn.execute(
-            "SELECT DISTINCT category FROM transactions ORDER BY category"
-        ).fetchall()
-    ]
-    statements = conn.execute("SELECT id, filename FROM statements").fetchall()
+    cur = conn.cursor()
+    cur.execute(query, params)
+    rows = cur.fetchall()
+
+    cur.execute("SELECT DISTINCT category FROM transactions ORDER BY category")
+    categories = [r["category"] for r in cur.fetchall()]
+
+    cur.execute("SELECT id, filename FROM statements")
+    statements = cur.fetchall()
+
+    cur.close()
     conn.close()
 
     return render_template(
@@ -176,26 +182,27 @@ def update_category(txn_id):
         return redirect(url_for("transactions"))
 
     conn = get_connection()
-    txn = conn.execute(
-        "SELECT description FROM transactions WHERE id = ?", (txn_id,)
-    ).fetchone()
-    conn.execute(
-        "UPDATE transactions SET category = ? WHERE id = ?", (new_category, txn_id)
+    cur = conn.cursor()
+    cur.execute("SELECT description FROM transactions WHERE id = %s", (txn_id,))
+    txn = cur.fetchone()
+    cur.execute(
+        "UPDATE transactions SET category = %s WHERE id = %s", (new_category, txn_id)
     )
 
     remember = request.form.get("remember")
     if remember and txn:
         keyword = txn["description"].split()[0].lower() if txn["description"] else None
         if keyword:
-            conn.execute(
+            cur.execute(
                 """
-                INSERT INTO rules (keyword, category) VALUES (?, ?)
-                ON CONFLICT(keyword) DO UPDATE SET category = excluded.category
+                INSERT INTO rules (keyword, category) VALUES (%s, %s)
+                ON CONFLICT (keyword) DO UPDATE SET category = excluded.category
                 """,
                 (keyword, new_category),
             )
 
     conn.commit()
+    cur.close()
     conn.close()
     flash("Category updated.", "success")
     return redirect(request.referrer or url_for("transactions"))
@@ -204,8 +211,10 @@ def update_category(txn_id):
 @app.route("/transactions/<int:txn_id>/delete", methods=["POST"])
 def delete_transaction(txn_id):
     conn = get_connection()
-    conn.execute("DELETE FROM transactions WHERE id = ?", (txn_id,))
+    cur = conn.cursor()
+    cur.execute("DELETE FROM transactions WHERE id = %s", (txn_id,))
     conn.commit()
+    cur.close()
     conn.close()
     flash("Transaction deleted.", "success")
     return redirect(request.referrer or url_for("transactions"))
@@ -214,9 +223,11 @@ def delete_transaction(txn_id):
 @app.route("/statements/<int:statement_id>/delete", methods=["POST"])
 def delete_statement(statement_id):
     conn = get_connection()
-    conn.execute("DELETE FROM transactions WHERE statement_id = ?", (statement_id,))
-    conn.execute("DELETE FROM statements WHERE id = ?", (statement_id,))
+    cur = conn.cursor()
+    cur.execute("DELETE FROM transactions WHERE statement_id = %s", (statement_id,))
+    cur.execute("DELETE FROM statements WHERE id = %s", (statement_id,))
     conn.commit()
+    cur.close()
     conn.close()
     flash("Statement and its transactions removed.", "success")
     return redirect(url_for("index"))
@@ -225,7 +236,10 @@ def delete_statement(statement_id):
 @app.route("/rules")
 def rules():
     conn = get_connection()
-    rule_rows = conn.execute("SELECT * FROM rules ORDER BY category, keyword").fetchall()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM rules ORDER BY category, keyword")
+    rule_rows = cur.fetchall()
+    cur.close()
     conn.close()
     return render_template("rules.html", rules=rule_rows)
 
@@ -239,14 +253,16 @@ def add_rule():
         return redirect(url_for("rules"))
 
     conn = get_connection()
-    conn.execute(
+    cur = conn.cursor()
+    cur.execute(
         """
-        INSERT INTO rules (keyword, category) VALUES (?, ?)
-        ON CONFLICT(keyword) DO UPDATE SET category = excluded.category
+        INSERT INTO rules (keyword, category) VALUES (%s, %s)
+        ON CONFLICT (keyword) DO UPDATE SET category = excluded.category
         """,
         (keyword, category),
     )
     conn.commit()
+    cur.close()
     conn.close()
     flash("Rule saved.", "success")
     return redirect(url_for("rules"))
@@ -255,8 +271,10 @@ def add_rule():
 @app.route("/rules/<int:rule_id>/delete", methods=["POST"])
 def delete_rule(rule_id):
     conn = get_connection()
-    conn.execute("DELETE FROM rules WHERE id = ?", (rule_id,))
+    cur = conn.cursor()
+    cur.execute("DELETE FROM rules WHERE id = %s", (rule_id,))
     conn.commit()
+    cur.close()
     conn.close()
     flash("Rule deleted.", "success")
     return redirect(url_for("rules"))
@@ -265,16 +283,19 @@ def delete_rule(rule_id):
 @app.route("/api/summary")
 def api_summary():
     conn = get_connection()
-    by_month = conn.execute(
+    cur = conn.cursor()
+    cur.execute(
         """
-        SELECT strftime('%Y-%m', date) AS month, type, COALESCE(SUM(amount), 0) AS total
+        SELECT to_char(date, 'YYYY-MM') AS month, type, COALESCE(SUM(amount), 0) AS total
         FROM transactions
         GROUP BY month, type
         ORDER BY month
         """
-    ).fetchall()
+    )
+    rows = cur.fetchall()
+    cur.close()
     conn.close()
-    return jsonify([dict(row) for row in by_month])
+    return jsonify([dict(row) for row in rows])
 
 
 if __name__ == "__main__":

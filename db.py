@@ -1,28 +1,27 @@
-import sqlite3
-from pathlib import Path
+import os
 
-DB_PATH = Path(__file__).parent / "instance" / "recon.db"
+import psycopg2
+import psycopg2.extras
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS statements (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     filename TEXT NOT NULL,
-    uploaded_at TEXT NOT NULL DEFAULT (datetime('now'))
+    uploaded_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS transactions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    statement_id INTEGER NOT NULL,
-    date TEXT NOT NULL,
+    id SERIAL PRIMARY KEY,
+    statement_id INTEGER NOT NULL REFERENCES statements(id),
+    date DATE NOT NULL,
     description TEXT NOT NULL,
-    amount REAL NOT NULL,
-    type TEXT NOT NULL CHECK(type IN ('income', 'expense')),
-    category TEXT NOT NULL DEFAULT 'Uncategorized',
-    FOREIGN KEY (statement_id) REFERENCES statements(id)
+    amount NUMERIC NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
+    category TEXT NOT NULL DEFAULT 'Uncategorized'
 );
 
 CREATE TABLE IF NOT EXISTS rules (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     keyword TEXT NOT NULL UNIQUE,
     category TEXT NOT NULL
 );
@@ -55,19 +54,19 @@ DEFAULT_RULES = [
 
 
 def get_connection():
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    database_url = os.environ["DATABASE_URL"]
+    return psycopg2.connect(database_url, cursor_factory=psycopg2.extras.RealDictCursor)
 
 
 def init_db():
     conn = get_connection()
-    conn.executescript(SCHEMA)
-    cur = conn.execute("SELECT COUNT(*) FROM rules")
-    if cur.fetchone()[0] == 0:
-        conn.executemany(
-            "INSERT INTO rules (keyword, category) VALUES (?, ?)", DEFAULT_RULES
+    cur = conn.cursor()
+    cur.execute(SCHEMA)
+    cur.execute("SELECT COUNT(*) AS count FROM rules")
+    if cur.fetchone()["count"] == 0:
+        cur.executemany(
+            "INSERT INTO rules (keyword, category) VALUES (%s, %s)", DEFAULT_RULES
         )
     conn.commit()
+    cur.close()
     conn.close()
