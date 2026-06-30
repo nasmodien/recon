@@ -132,6 +132,14 @@ body {
 .row-income td:nth-child(3) { color: #1a7f37; }
 .row-expense td:nth-child(3) { color: #cf222e; }
 
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
 .bank-badge {
   display: inline-block;
   padding: 0.15rem 0.5rem;

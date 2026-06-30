@@ -196,6 +196,9 @@ def reload_statement_file():
     return redirect(url_for("index"))
 
 
+PAGE_SIZE = 200
+
+
 @app.route("/transactions")
 def transactions():
     statement_id = request.args.get("statement_id")
@@ -203,33 +206,64 @@ def transactions():
     category_filter = request.args.get("category")
     search = request.args.get("search", "").strip()
     source_filter = request.args.get("source")
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+    except ValueError:
+        page = 1
 
-    query = "SELECT t.*, s.filename FROM transactions t JOIN statements s ON t.statement_id = s.id WHERE 1=1"
+    where = " WHERE 1=1"
     params = []
     if statement_id:
-        query += " AND t.statement_id = %s"
+        where += " AND t.statement_id = %s"
         params.append(statement_id)
     if type_filter:
-        query += " AND t.type = %s"
+        where += " AND t.type = %s"
         params.append(type_filter)
     if category_filter:
-        query += " AND t.category = %s"
+        where += " AND t.category = %s"
         params.append(category_filter)
     if search:
-        query += " AND t.description ILIKE %s"
+        where += " AND t.description ILIKE %s"
         params.append(f"%{search}%")
     if source_filter in ("FNB", "ABSA"):
-        query += " AND t.source = %s"
+        where += " AND t.source = %s"
         params.append(source_filter)
-    query += " ORDER BY t.date DESC, t.id DESC"
 
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute(query, params)
-    rows = cur.fetchall()
 
-    income_total = sum(float(r["amount"]) for r in rows if r["type"] == "income")
-    expense_total = sum(float(r["amount"]) for r in rows if r["type"] == "expense")
+    cur.execute(
+        f"""
+        SELECT
+            COUNT(*) AS total_count,
+            COALESCE(SUM(t.amount) FILTER (WHERE t.type = 'income'), 0) AS income_total,
+            COALESCE(SUM(t.amount) FILTER (WHERE t.type = 'expense'), 0) AS expense_total
+        FROM transactions t
+        JOIN statements s ON t.statement_id = s.id
+        {where}
+        """,
+        params,
+    )
+    totals = cur.fetchone()
+    total_count = totals["total_count"]
+    income_total = float(totals["income_total"])
+    expense_total = float(totals["expense_total"])
+
+    total_pages = max(1, -(-total_count // PAGE_SIZE))
+    page = min(page, total_pages)
+    offset = (page - 1) * PAGE_SIZE
+
+    cur.execute(
+        f"""
+        SELECT t.*, s.filename FROM transactions t
+        JOIN statements s ON t.statement_id = s.id
+        {where}
+        ORDER BY t.date DESC, t.id DESC
+        LIMIT %s OFFSET %s
+        """,
+        params + [PAGE_SIZE, offset],
+    )
+    rows = cur.fetchall()
 
     cur.execute("SELECT DISTINCT category FROM transactions ORDER BY category")
     categories = [r["category"] for r in cur.fetchall()]
@@ -250,6 +284,9 @@ def transactions():
         category_filter=category_filter,
         search=search,
         source_filter=source_filter,
+        page=page,
+        total_pages=total_pages,
+        total_count=total_count,
         income_total=income_total,
         expense_total=expense_total,
         net_total=income_total - expense_total,
