@@ -132,6 +132,23 @@ body {
 .row-income td:nth-child(3) { color: #1a7f37; }
 .row-expense td:nth-child(3) { color: #cf222e; }
 
+.bank-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.bank-badge-absa { background: #fde8e8; color: #cf222e; }
+.bank-badge-fnb { background: #e1f5f3; color: #0f8a7e; }
+
+tr.bank-absa { border-left: 3px solid #cf222e; }
+tr.bank-fnb { border-left: 3px solid #0f8a7e; }
+tr.bank-absa td:nth-child(3) { color: #cf222e; }
+tr.bank-fnb td:nth-child(3) { color: #0f8a7e; }
+
 .upload-form, .filter-form { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin-top: 0.5rem; }
 .inline-form { display: flex; gap: 0.4rem; align-items: center; }
 .inline-form input[type="text"] { width: 130px; padding: 0.25rem; }

@@ -7,7 +7,10 @@ from db import get_connection, init_db
 from parser import parse_statement_xlsx, parse_client_directory, categorize
 
 BASE_DIR = Path(__file__).parent
-STATEMENT_FILE = BASE_DIR / "data" / "bank_statement.xlsx"
+STATEMENT_FILES = [
+    ("FNB", BASE_DIR / "data" / "fnb_statement.xlsx"),
+    ("ABSA", BASE_DIR / "data" / "absa_statement.xlsx"),
+]
 CLIENT_DIRECTORY_FILE = BASE_DIR / "data" / "client_directory.xlsx"
 
 app = Flask(__name__, static_folder=str(BASE_DIR / "public" / "static"))
@@ -43,33 +46,35 @@ def _load_client_directory():
     return len(clients)
 
 
-def _load_statement_file(replace=False):
-    conn = get_connection()
-    cur = conn.cursor()
+def _load_one_statement_file(cur, source, path, replace=False):
+    if not path.exists():
+        return 0
 
-    current_hash = _file_hash(STATEMENT_FILE)
+    current_hash = _file_hash(path)
 
-    if replace:
-        cur.execute("DELETE FROM transactions")
-        cur.execute("DELETE FROM statements")
-    else:
-        cur.execute("SELECT file_hash FROM statements ORDER BY id DESC LIMIT 1")
+    if not replace:
+        cur.execute(
+            "SELECT file_hash FROM statements WHERE source = %s ORDER BY id DESC LIMIT 1",
+            (source,),
+        )
         row = cur.fetchone()
         if row is not None and row["file_hash"] == current_hash:
-            cur.close()
-            conn.close()
             return None
-        cur.execute("DELETE FROM transactions")
-        cur.execute("DELETE FROM statements")
 
-    records = parse_statement_xlsx(STATEMENT_FILE)
+    cur.execute(
+        "DELETE FROM transactions WHERE statement_id IN (SELECT id FROM statements WHERE source = %s)",
+        (source,),
+    )
+    cur.execute("DELETE FROM statements WHERE source = %s", (source,))
+
+    records = parse_statement_xlsx(path, source=source)
 
     cur.execute("SELECT keyword, category FROM rules")
     rules = [(r["keyword"], r["category"]) for r in cur.fetchall()]
 
     cur.execute(
-        "INSERT INTO statements (filename, file_hash) VALUES (%s, %s) RETURNING id",
-        (STATEMENT_FILE.name, current_hash),
+        "INSERT INTO statements (filename, file_hash, source) VALUES (%s, %s, %s) RETURNING id",
+        (path.name, current_hash, source),
     )
     statement_id = cur.fetchone()["id"]
 
@@ -79,8 +84,8 @@ def _load_statement_file(replace=False):
             category = "Income"
         cur.execute(
             """
-            INSERT INTO transactions (statement_id, date, description, amount, type, category, customer_code)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO transactions (statement_id, date, description, amount, type, category, customer_code, source)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 statement_id,
@@ -90,13 +95,29 @@ def _load_statement_file(replace=False):
                 rec["type"],
                 category,
                 rec.get("customer_code"),
+                source,
             ),
         )
+
+    return len(records)
+
+
+def _load_statement_file(replace=False):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    total = 0
+    any_loaded = False
+    for source, path in STATEMENT_FILES:
+        count = _load_one_statement_file(cur, source, path, replace=replace)
+        if count is not None:
+            any_loaded = True
+            total += count
 
     conn.commit()
     cur.close()
     conn.close()
-    return len(records)
+    return total if any_loaded else None
 
 
 init_db()
@@ -171,7 +192,7 @@ def reload_statement_file():
         flash(str(exc), "error")
         return redirect(url_for("index"))
 
-    flash(f"Reloaded {count} transactions from {STATEMENT_FILE.name}.", "success")
+    flash(f"Reloaded {count} transactions from the bundled statement files.", "success")
     return redirect(url_for("index"))
 
 
@@ -181,6 +202,7 @@ def transactions():
     type_filter = request.args.get("type")
     category_filter = request.args.get("category")
     search = request.args.get("search", "").strip()
+    source_filter = request.args.get("source")
 
     query = "SELECT t.*, s.filename FROM transactions t JOIN statements s ON t.statement_id = s.id WHERE 1=1"
     params = []
@@ -196,6 +218,9 @@ def transactions():
     if search:
         query += " AND t.description ILIKE %s"
         params.append(f"%{search}%")
+    if source_filter in ("FNB", "ABSA"):
+        query += " AND t.source = %s"
+        params.append(source_filter)
     query += " ORDER BY t.date DESC, t.id DESC"
 
     conn = get_connection()
@@ -224,6 +249,7 @@ def transactions():
         type_filter=type_filter,
         category_filter=category_filter,
         search=search,
+        source_filter=source_filter,
         income_total=income_total,
         expense_total=expense_total,
         net_total=income_total - expense_total,

@@ -8,10 +8,12 @@ CREATE TABLE IF NOT EXISTS statements (
     id SERIAL PRIMARY KEY,
     filename TEXT NOT NULL,
     uploaded_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    file_hash TEXT
+    file_hash TEXT,
+    source TEXT NOT NULL DEFAULT 'FNB'
 );
 
 ALTER TABLE statements ADD COLUMN IF NOT EXISTS file_hash TEXT;
+ALTER TABLE statements ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'FNB';
 
 CREATE TABLE IF NOT EXISTS transactions (
     id SERIAL PRIMARY KEY,
@@ -21,12 +23,15 @@ CREATE TABLE IF NOT EXISTS transactions (
     amount NUMERIC NOT NULL,
     type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
     category TEXT NOT NULL DEFAULT 'Uncategorized',
-    customer_code TEXT
+    customer_code TEXT,
+    source TEXT NOT NULL DEFAULT 'FNB'
 );
 
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS customer_code TEXT;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'FNB';
 CREATE INDEX IF NOT EXISTS idx_transactions_customer_code ON transactions (customer_code);
 CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions (date);
+CREATE INDEX IF NOT EXISTS idx_transactions_source ON transactions (source);
 
 CREATE TABLE IF NOT EXISTS rules (
     id SERIAL PRIMARY KEY,

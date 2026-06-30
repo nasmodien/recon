@@ -23,6 +23,11 @@
       <option value="{{ c }}" {% if category_filter == c %}selected{% endif %}>{{ c }}</option>
       {% endfor %}
     </select>
+    <select name="source">
+      <option value="" {% if not source_filter %}selected{% endif %}>Both banks</option>
+      <option value="FNB" {% if source_filter == 'FNB' %}selected{% endif %}>FNB only</option>
+      <option value="ABSA" {% if source_filter == 'ABSA' %}selected{% endif %}>ABSA only</option>
+    </select>
     <input type="text" name="search" placeholder="Search description..." value="{{ search or '' }}">
     <button type="submit">Filter</button>
     <a href="{{ url_for('transactions') }}" class="link-button">Clear</a>
@@ -49,13 +54,14 @@
   <table class="data-table">
     <thead>
       <tr>
-        <th>Date</th><th>Description</th><th>Type</th><th>Amount</th><th>Category</th><th>Statement</th><th></th>
+        <th>Date</th><th>Bank</th><th>Description</th><th>Type</th><th>Amount</th><th>Category</th><th>Statement</th><th></th>
       </tr>
     </thead>
     <tbody>
       {% for t in transactions %}
-      <tr class="{{ 'row-income' if t.type == 'income' else 'row-expense' }}">
+      <tr class="{{ 'row-income' if t.type == 'income' else 'row-expense' }}{{ ' bank-absa' if not source_filter and t.source == 'ABSA' else '' }}{{ ' bank-fnb' if not source_filter and t.source == 'FNB' else '' }}">
         <td>{{ t.date }}</td>
+        <td><span class="bank-badge bank-badge-{{ t.source|lower }}">{{ t.source }}</span></td>
         <td>{{ t.description }}</td>
         <td>{{ t.type }}</td>
         <td>{{ t.amount|currency }}</td>
@@ -74,7 +80,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="7">No transactions found.</td></tr>
+      <tr><td colspan="8">No transactions found.</td></tr>
       {% endfor %}
     </tbody>
   </table>

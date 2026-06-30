@@ -5,7 +5,7 @@
 
 <section class="card">
   <h2>Data Source</h2>
-  <p class="hint">This app reads directly from the bookkeeping workbook bundled with the app (<code>data/bank_statement.xlsx</code>). To update the data, replace that file and redeploy, then reload below.</p>
+  <p class="hint">This app reads directly from the bookkeeping workbooks bundled with the app (<code>data/fnb_statement.xlsx</code> and <code>data/absa_statement.xlsx</code>). To update the data, replace the relevant file and redeploy, then reload below.</p>
   <form action="{{ url_for('reload_statement_file') }}" method="post" onsubmit="return confirm('Reload from the bundled workbook? This replaces all current transactions.');">
     <button type="submit">Reload from file</button>
   </form>

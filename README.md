@@ -4,12 +4,16 @@ A small Flask app for reconciling bank statements: reads transactions directly f
 
 ## Data source
 
-The app reads exclusively from `data/bank_statement.xlsx`, a workbook committed to this repo. There is no upload feature. To update the data, replace that file and redeploy (or re-run locally) — the app detects the file changed (by content hash) and automatically re-imports it on the next startup. You can also click **Reload from file** on the dashboard to force a re-import at any time; this replaces all existing transactions.
+The app reads exclusively from two bundled workbooks: `data/fnb_statement.xlsx` (FNB) and `data/absa_statement.xlsx` (ABSA), each committed to this repo. There is no upload feature. To update either bank's data, replace its file and redeploy (or re-run locally) — the app detects per-file content-hash changes and automatically re-imports only the changed bank's data on the next startup. You can also click **Reload from file** on the dashboard to force a re-import of both files at any time; this replaces all existing transactions for both banks.
 
-The workbook is expected to have a `Transactions` sheet (or the first sheet) with columns for date, description, and either an amount column or separate debit/credit columns. Optional columns:
+Each workbook is expected to have a `Transactions` sheet (or the first sheet) with columns for date, description, and either an amount column or separate debit/credit columns. Optional columns:
 
-- A counterparty/customer code column (e.g. "Counterparty Code", "Customer Code", "CU Number"), or a `Cu<number>` code embedded in the description text — either way it's used to group transactions by customer.
+- A counterparty/customer code column (e.g. "Counterparty Code", "Customer Code", "CU Number"), or a `Cu<number>` code embedded in the description or reference text — either way it's used to group transactions by customer.
 - A `Category` column, used as-is if present; otherwise transactions are auto-categorized using keyword rules.
+
+### Bank source filter
+
+Every transaction is tagged with its source bank (`FNB` or `ABSA`). On the **Transactions** page, use the **Bank** dropdown to view FNB only, ABSA only, or both. When both banks are shown, each row is color-coded — ABSA in red, FNB in teal — with a matching badge next to the bank name, so the two statements stay visually distinct even when merged.
 
 ### Client directory
 
@@ -26,7 +30,7 @@ export DATABASE_URL="postgresql://user:password@localhost:5432/recon"
 .venv/bin/python app.py
 ```
 
-Visit http://localhost:5000. On first run, the app automatically loads `data/bank_statement.xlsx` into the database.
+Visit http://localhost:5000. On first run, the app automatically loads `data/fnb_statement.xlsx` and `data/absa_statement.xlsx` into the database.
 
 ## Deploying to Vercel
 
@@ -36,8 +40,8 @@ Visit http://localhost:5000. On first run, the app automatically loads `data/ban
 
 ## Usage
 
-1. The **Dashboard** shows income/expense totals, spend by category, a monthly breakdown, and the currently loaded statement file. Use **Reload from file** to re-import the bundled workbook (e.g. after replacing it and redeploying).
+1. The **Dashboard** shows income/expense totals, spend by category, a monthly breakdown, and the currently loaded statement files. Use **Reload from file** to re-import the bundled workbooks (e.g. after replacing one and redeploying).
 2. Transactions are auto-categorized using keyword rules (editable under **Categorization Rules**); positive amounts are treated as income, negative as expenses.
-3. Fine-tune individual transactions on the **Transactions** page — edit the category inline and optionally check "remember" to save it as a new rule.
+3. Fine-tune individual transactions on the **Transactions** page — edit the category inline and optionally check "remember" to save it as a new rule. Use the **Bank** filter to view FNB, ABSA, or both (color-coded) statements.
 4. The **Customers** page lists each customer/counterparty code with totals received, paid, and net, linking to a detail page with their full transaction history.
 5. The **Payments** page lets you filter transactions by customer, type, category, and date range, and shows a timeline chart of payments received vs. paid over time.
