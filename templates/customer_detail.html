@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} - Bank Recon{% endblock %}
+{% block crumb %}Customers &rsaquo; {{ code }}{% endblock %}
+{% block content %}
+
+<section class="card">
+  <h2>Customer {{ code }}{% if client_name %} &mdash; {{ client_name }}{% endif %}</h2>
+  <p class="hint"><a href="{{ url_for('customers') }}">&larr; back to all customers</a> · <a href="{{ url_for('payments', customer_code=code) }}">view on payments timeline</a></p>
+
+  <div class="summary-grid">
+    <div class="card stat stat-income">
+      <span class="stat-icon">&#8593;</span>
+      <span class="stat-label">Received</span>
+      <span class="stat-value">{{ received|currency }}</span>
+    </div>
+    <div class="card stat stat-expense">
+      <span class="stat-icon">&#8595;</span>
+      <span class="stat-label">Paid</span>
+      <span class="stat-value">{{ paid|currency }}</span>
+    </div>
+    <div class="card stat stat-net">
+      <span class="stat-icon">&#8776;</span>
+      <span class="stat-label">Net</span>
+      <span class="stat-value">{{ net|currency }}</span>
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Transactions</h2>
+  <table class="data-table">
+    <thead><tr><th>Date</th><th>Description</th><th>Type</th><th>Amount</th><th>Category</th></tr></thead>
+    <tbody>
+      {% for t in transactions %}
+      <tr class="{{ 'row-income' if t.type == 'income' else 'row-expense' }}">
+        <td>{{ t.date }}</td>
+        <td>{{ t.description }}</td>
+        <td>{{ t.type }}</td>
+        <td>{{ t.amount|currency }}</td>
+        <td>{{ t.category }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+{% endblock %}
