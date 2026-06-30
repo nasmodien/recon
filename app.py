@@ -495,6 +495,120 @@ def payments():
     )
 
 
+ANALYSIS_GROUP_COLUMNS = {
+    "description": "t.description",
+    "customer_code": "t.customer_code",
+}
+ANALYSIS_SORT_COLUMNS = {
+    "total": "total_amount",
+    "count": "txn_count",
+    "max_amount": "max_amount",
+}
+
+
+@app.route("/analysis")
+def analysis():
+    group_by = request.args.get("group_by", "description")
+    if group_by not in ANALYSIS_GROUP_COLUMNS:
+        group_by = "description"
+    group_col = ANALYSIS_GROUP_COLUMNS[group_by]
+
+    type_filter = request.args.get("type")
+    source_filter = request.args.get("source")
+    search = request.args.get("search", "").strip()
+    try:
+        min_count = max(1, int(request.args.get("min_count", 2)))
+    except ValueError:
+        min_count = 2
+
+    sort = request.args.get("sort", "total")
+    if sort not in ANALYSIS_SORT_COLUMNS:
+        sort = "total"
+    sort_col = ANALYSIS_SORT_COLUMNS[sort]
+    direction = "ASC" if request.args.get("dir") == "asc" else "DESC"
+
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+    except ValueError:
+        page = 1
+
+    where = f" WHERE {group_col} IS NOT NULL"
+    params = []
+    if type_filter in ("income", "expense"):
+        where += " AND t.type = %s"
+        params.append(type_filter)
+    if source_filter in ("FNB", "ABSA"):
+        where += " AND t.source = %s"
+        params.append(source_filter)
+    if search:
+        where += f" AND {group_col} ILIKE %s"
+        params.append(f"%{search}%")
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        f"""
+        SELECT COUNT(*) AS group_count FROM (
+            SELECT {group_col}
+            FROM transactions t
+            {where}
+            GROUP BY {group_col}
+            HAVING COUNT(*) >= %s
+        ) sub
+        """,
+        params + [min_count],
+    )
+    total_groups = cur.fetchone()["group_count"]
+
+    page_size = 100
+    total_pages = max(1, -(-total_groups // page_size))
+    page = min(page, total_pages)
+    offset = (page - 1) * page_size
+
+    cur.execute(
+        f"""
+        SELECT
+            {group_col} AS group_key,
+            COUNT(*) AS txn_count,
+            COUNT(DISTINCT t.amount) AS distinct_amounts,
+            COALESCE(SUM(t.amount) FILTER (WHERE t.type = 'income'), 0) AS income_total,
+            COALESCE(SUM(t.amount) FILTER (WHERE t.type = 'expense'), 0) AS expense_total,
+            COALESCE(SUM(t.amount), 0) AS total_amount,
+            MAX(t.amount) AS max_amount,
+            MIN(t.date) AS first_date,
+            MAX(t.date) AS last_date,
+            COUNT(DISTINCT t.source) AS bank_count
+        FROM transactions t
+        {where}
+        GROUP BY {group_col}
+        HAVING COUNT(*) >= %s
+        ORDER BY {sort_col} {direction}
+        LIMIT %s OFFSET %s
+        """,
+        params + [min_count, page_size, offset],
+    )
+    groups = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return render_template(
+        "analysis.html",
+        groups=groups,
+        group_by=group_by,
+        type_filter=type_filter,
+        source_filter=source_filter,
+        search=search,
+        min_count=min_count,
+        sort=sort,
+        direction=direction.lower(),
+        page=page,
+        total_pages=total_pages,
+        total_groups=total_groups,
+    )
+
+
 @app.route("/rules")
 def rules():
     conn = get_connection()

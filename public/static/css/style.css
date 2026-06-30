@@ -158,6 +158,18 @@ body {
 .bank-badge-absa { background: #fde8e8; color: #cf222e; }
 .bank-badge-fnb { background: #e1f5f3; color: #0f8a7e; }
 
+.flag-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  margin-right: 0.3rem;
+  white-space: nowrap;
+}
+.flag-badge-danger { background: #fde8e8; color: #cf222e; }
+.flag-badge-warn { background: #fff4e0; color: #b9770e; }
+
 tr.bank-absa { border-left: 3px solid #cf222e; }
 tr.bank-fnb { border-left: 3px solid #0f8a7e; }
 tr.bank-absa td:nth-child(3) { color: #cf222e; }

@@ -26,6 +26,9 @@
         <a href="{{ url_for('payments') }}" class="{{ 'active' if request.endpoint == 'payments' else '' }}">
           <span class="nav-icon">&#8644;</span> Payments
         </a>
+        <a href="{{ url_for('analysis') }}" class="{{ 'active' if request.endpoint == 'analysis' else '' }}">
+          <span class="nav-icon">&#9888;</span> Analysis
+        </a>
         <a href="{{ url_for('rules') }}" class="{{ 'active' if request.endpoint == 'rules' else '' }}">
           <span class="nav-icon">&#9881;</span> Categorization Rules
         </a>
