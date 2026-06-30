@@ -56,7 +56,18 @@
   <table class="data-table">
     <thead>
       <tr>
-        <th>Date</th><th>Bank</th><th>Description</th><th>Type</th><th>Amount</th><th>Category</th><th>Statement</th><th></th>
+        <th>
+          <a class="sort-link" href="{{ url_for('transactions', statement_id=statement_id, type=type_filter, category=category_filter, search=search, source=source_filter, sort='date', dir=('asc' if sort == 'date' and direction == 'desc' else 'desc')) }}">
+            Date{% if sort == 'date' %}{{ ' ↑' if direction == 'asc' else ' ↓' }}{% endif %}
+          </a>
+        </th>
+        <th>Bank</th><th>Description</th><th>Type</th>
+        <th>
+          <a class="sort-link" href="{{ url_for('transactions', statement_id=statement_id, type=type_filter, category=category_filter, search=search, source=source_filter, sort='amount', dir=('asc' if sort == 'amount' and direction == 'desc' else 'desc')) }}">
+            Amount{% if sort == 'amount' %}{{ ' ↑' if direction == 'asc' else ' ↓' }}{% endif %}
+          </a>
+        </th>
+        <th>Category</th><th>Statement</th><th></th>
       </tr>
     </thead>
     <tbody>
@@ -90,11 +101,11 @@
   {% if total_pages > 1 %}
   <div class="pagination">
     {% if page > 1 %}
-    <a class="link-button" href="{{ url_for('transactions', page=page-1, statement_id=statement_id, type=type_filter, category=category_filter, search=search, source=source_filter) }}">&laquo; Previous</a>
+    <a class="link-button" href="{{ url_for('transactions', page=page-1, statement_id=statement_id, type=type_filter, category=category_filter, search=search, source=source_filter, sort=sort, dir=direction) }}">&laquo; Previous</a>
     {% endif %}
     <span class="hint">Page {{ page }} of {{ total_pages }}</span>
     {% if page < total_pages %}
-    <a class="link-button" href="{{ url_for('transactions', page=page+1, statement_id=statement_id, type=type_filter, category=category_filter, search=search, source=source_filter) }}">Next &raquo;</a>
+    <a class="link-button" href="{{ url_for('transactions', page=page+1, statement_id=statement_id, type=type_filter, category=category_filter, search=search, source=source_filter, sort=sort, dir=direction) }}">Next &raquo;</a>
     {% endif %}
   </div>
   {% endif %}

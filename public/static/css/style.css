@@ -132,6 +132,12 @@ body {
 .row-income td:nth-child(3) { color: #1a7f37; }
 .row-expense td:nth-child(3) { color: #cf222e; }
 
+.sort-link {
+  color: inherit;
+  text-decoration: none;
+}
+.sort-link:hover { color: #5b8def; }
+
 .pagination {
   display: flex;
   align-items: center;

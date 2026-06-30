@@ -211,6 +211,12 @@ def transactions():
     except ValueError:
         page = 1
 
+    sort = request.args.get("sort", "date")
+    direction = request.args.get("dir", "desc")
+    sort_columns = {"date": "t.date", "amount": "t.amount"}
+    sort_col = sort_columns.get(sort, "t.date")
+    sort_dir = "ASC" if direction == "asc" else "DESC"
+
     where = " WHERE 1=1"
     params = []
     if statement_id:
@@ -258,7 +264,7 @@ def transactions():
         SELECT t.*, s.filename FROM transactions t
         JOIN statements s ON t.statement_id = s.id
         {where}
-        ORDER BY t.date DESC, t.id DESC
+        ORDER BY {sort_col} {sort_dir}, t.id {sort_dir}
         LIMIT %s OFFSET %s
         """,
         params + [PAGE_SIZE, offset],
@@ -284,6 +290,8 @@ def transactions():
         category_filter=category_filter,
         search=search,
         source_filter=source_filter,
+        sort=sort,
+        direction=direction,
         page=page,
         total_pages=total_pages,
         total_count=total_count,
