@@ -23,6 +23,9 @@
         <a href="{{ url_for('customers') }}" class="{{ 'active' if request.endpoint in ('customers', 'customer_detail') else '' }}">
           <span class="nav-icon">&#9737;</span> Customers
         </a>
+        <a href="{{ url_for('cu_lookup') }}" class="{{ 'active' if request.endpoint == 'cu_lookup' else '' }}">
+          <span class="nav-icon">&#128269;</span> CU Lookup
+        </a>
         <a href="{{ url_for('payments') }}" class="{{ 'active' if request.endpoint == 'payments' else '' }}">
           <span class="nav-icon">&#8644;</span> Payments
         </a>

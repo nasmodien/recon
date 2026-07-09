@@ -175,6 +175,15 @@ tr.bank-fnb { border-left: 3px solid #0f8a7e; }
 tr.bank-absa td:nth-child(3) { color: #cf222e; }
 tr.bank-fnb td:nth-child(3) { color: #0f8a7e; }
 
+.cu-client-name { font-size: 0.9rem; font-weight: 400; color: #8a93a8; }
+.cu-chart-wrap { position: relative; height: 300px; }
+.cu-table-toggle { margin-top: 1rem; }
+.cu-table-toggle summary { cursor: pointer; list-style: none; user-select: none; }
+.cu-table-toggle summary::-webkit-details-marker { display: none; }
+.cu-table-toggle summary::before { content: '▶  '; font-size: 0.7rem; }
+details[open] .cu-table-toggle summary::before,
+.cu-table-toggle[open] summary::before { content: '▼  '; }
+
 .upload-form, .filter-form { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin-top: 0.5rem; }
 .inline-form { display: flex; gap: 0.4rem; align-items: center; }
 .inline-form input[type="text"] { width: 130px; padding: 0.25rem; }

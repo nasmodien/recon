@@ -360,6 +360,77 @@ def delete_statement(statement_id):
     return redirect(url_for("index"))
 
 
+@app.route("/cu-lookup")
+def cu_lookup():
+    code = request.args.get("code", "").strip()
+    all_codes = []
+    result = None
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT t.customer_code, c.name AS client_name
+        FROM transactions t
+        LEFT JOIN clients c ON UPPER(t.customer_code) = c.customer_code
+        WHERE t.customer_code IS NOT NULL
+        GROUP BY t.customer_code, c.name
+        ORDER BY t.customer_code
+        """
+    )
+    all_codes = cur.fetchall()
+
+    if code:
+        cur.execute(
+            """
+            SELECT t.*, s.filename, s.source AS stmt_source
+            FROM transactions t
+            JOIN statements s ON t.statement_id = s.id
+            WHERE t.customer_code = %s
+            ORDER BY t.date, t.id
+            """,
+            (code,),
+        )
+        txns = cur.fetchall()
+
+        cur.execute("SELECT name FROM clients WHERE customer_code = %s", (code.upper(),))
+        client_row = cur.fetchone()
+
+        cur.execute(
+            """
+            SELECT
+                to_char(t.date, 'YYYY-MM') AS month,
+                COALESCE(SUM(t.amount) FILTER (WHERE t.type = 'income'), 0) AS income,
+                COALESCE(SUM(t.amount) FILTER (WHERE t.type = 'expense'), 0) AS expense
+            FROM transactions t
+            WHERE t.customer_code = %s
+            GROUP BY month
+            ORDER BY month
+            """,
+            (code,),
+        )
+        monthly = cur.fetchall()
+
+        if txns:
+            received = sum(float(t["amount"]) for t in txns if t["type"] == "income")
+            paid = sum(float(t["amount"]) for t in txns if t["type"] == "expense")
+            result = {
+                "code": code,
+                "client_name": client_row["name"] if client_row else None,
+                "txns": txns,
+                "received": received,
+                "paid": paid,
+                "net": received - paid,
+                "monthly": [dict(r) for r in monthly],
+            }
+
+    cur.close()
+    conn.close()
+
+    return render_template("cu_lookup.html", all_codes=all_codes, code=code, result=result)
+
+
 @app.route("/customers")
 def customers():
     conn = get_connection()
