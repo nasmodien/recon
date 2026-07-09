@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Customers - Bank Recon{% endblock %}
+{% block crumb %}Customers{% endblock %}
+{% block content %}
+
+<section class="card">
+  <h2>Customer Ledger</h2>
+  <p class="hint">Matches each customer/counterparty code (CU number) against what they paid in (received) versus what was paid out to them (paid).</p>
+
+  {% if customers %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Customer Code</th><th>Name</th><th>Received</th><th>Paid</th><th>Net</th><th>Transactions</th><th>First</th><th>Last</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in customers %}
+      <tr>
+        <td>{{ c.customer_code }}</td>
+        <td>{{ c.client_name or "—" }}</td>
+        <td class="amt-income">{{ c.received|currency }}</td>
+        <td class="amt-expense">{{ c.paid|currency }}</td>
+        <td>{{ (c.received - c.paid)|currency }}</td>
+        <td>{{ c.txn_count }}</td>
+        <td>{{ c.first_date }}</td>
+        <td>{{ c.last_date }}</td>
+        <td>
+          <a href="{{ url_for('customer_detail', code=c.customer_code) }}">View</a> ·
+          <a href="{{ url_for('payments', customer_code=c.customer_code) }}">Timeline</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="hint">No customer-coded transactions yet. Import a workbook with a "Counterparty Code" column to populate this view.</p>
+  {% endif %}
+</section>
+
+{% endblock %}

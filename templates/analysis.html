@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Analysis - Bank Recon{% endblock %}
+{% block crumb %}Analysis{% endblock %}
+{% block content %}
+
+<section class="card">
+  <h2>Expense &amp; Income Analysis</h2>
+  <p class="hint">Group transactions by narrative (description) or by reference (CU/customer code) to spot repeated payments, round-tripping, or other unusual patterns. Click a group to see its individual transactions.</p>
+
+  <form method="get" class="filter-form">
+    <select name="group_by">
+      <option value="description" {% if group_by == 'description' %}selected{% endif %}>Group by narrative/description</option>
+      <option value="customer_code" {% if group_by == 'customer_code' %}selected{% endif %}>Group by reference (CU/customer code)</option>
+    </select>
+    <select name="type">
+      <option value="">All types</option>
+      <option value="income" {% if type_filter == 'income' %}selected{% endif %}>Income</option>
+      <option value="expense" {% if type_filter == 'expense' %}selected{% endif %}>Expense</option>
+    </select>
+    <select name="source">
+      <option value="" {% if not source_filter %}selected{% endif %}>Both banks</option>
+      <option value="FNB" {% if source_filter == 'FNB' %}selected{% endif %}>FNB only</option>
+      <option value="ABSA" {% if source_filter == 'ABSA' %}selected{% endif %}>ABSA only</option>
+    </select>
+    <input type="text" name="search" placeholder="Search group..." value="{{ search or '' }}">
+    <label class="remember-label">Min occurrences
+      <input type="number" name="min_count" min="1" value="{{ min_count }}" style="width: 4.5rem;">
+    </label>
+    <button type="submit">Filter</button>
+    <a href="{{ url_for('analysis') }}" class="link-button">Clear</a>
+  </form>
+
+  <p class="hint">{{ total_groups }} group{{ '' if total_groups == 1 else 's' }} found with at least {{ min_count }} transaction{{ '' if min_count == 1 else 's' }} &mdash; page {{ page }} of {{ total_pages }}.</p>
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>
+          <a class="sort-link" href="{{ url_for('analysis', group_by=group_by, type=type_filter, source=source_filter, search=search, min_count=min_count, sort='count', dir=('asc' if sort == 'count' and direction == 'desc' else 'desc')) }}">
+            Count{% if sort == 'count' %}{{ ' ↑' if direction == 'asc' else ' ↓' }}{% endif %}
+          </a>
+        </th>
+        <th>{{ 'Narrative / Description' if group_by == 'description' else 'Reference / Customer Code' }}</th>
+        <th>Flags</th>
+        <th>
+          <a class="sort-link" href="{{ url_for('analysis', group_by=group_by, type=type_filter, source=source_filter, search=search, min_count=min_count, sort='total', dir=('asc' if sort == 'total' and direction == 'desc' else 'desc')) }}">
+            Total{% if sort == 'total' %}{{ ' ↑' if direction == 'asc' else ' ↓' }}{% endif %}
+          </a>
+        </th>
+        <th>Income</th>
+        <th>Expense</th>
+        <th>
+          <a class="sort-link" href="{{ url_for('analysis', group_by=group_by, type=type_filter, source=source_filter, search=search, min_count=min_count, sort='max_amount', dir=('asc' if sort == 'max_amount' and direction == 'desc' else 'desc')) }}">
+            Max Amount{% if sort == 'max_amount' %}{{ ' ↑' if direction == 'asc' else ' ↓' }}{% endif %}
+          </a>
+        </th>
+        <th>Distinct Amounts</th>
+        <th>First &rarr; Last</th>
+        <th>Banks</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for g in groups %}
+      <tr>
+        <td>{{ g.txn_count }}</td>
+        <td>
+          {% if group_by == 'customer_code' %}
+          <a href="{{ url_for('customer_detail', code=g.group_key) }}">{{ g.group_key }}</a>
+          {% else %}
+          <a href="{{ url_for('transactions', search=g.group_key) }}">{{ g.group_key }}</a>
+          {% endif %}
+        </td>
+        <td>
+          {% if g.distinct_amounts == 1 and g.txn_count >= 3 %}
+          <span class="flag-badge flag-badge-danger">Same amount &times;{{ g.txn_count }}</span>
+          {% endif %}
+          {% if g.txn_count >= 10 %}
+          <span class="flag-badge flag-badge-warn">High frequency</span>
+          {% endif %}
+        </td>
+        <td>{{ g.total_amount|currency }}</td>
+        <td>{{ g.income_total|currency }}</td>
+        <td>{{ g.expense_total|currency }}</td>
+        <td>{{ g.max_amount|currency }}</td>
+        <td>{{ g.distinct_amounts }}</td>
+        <td>{{ g.first_date }} &rarr; {{ g.last_date }}</td>
+        <td>{{ 'Both' if g.bank_count > 1 else (g.bank_count and 'Single' or '') }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9">No groups match these filters.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if total_pages > 1 %}
+  <div class="pagination">
+    {% if page > 1 %}
+    <a class="link-button" href="{{ url_for('analysis', page=page-1, group_by=group_by, type=type_filter, source=source_filter, search=search, min_count=min_count, sort=sort, dir=direction) }}">&laquo; Previous</a>
+    {% endif %}
+    <span class="hint">Page {{ page }} of {{ total_pages }}</span>
+    {% if page < total_pages %}
+    <a class="link-button" href="{{ url_for('analysis', page=page+1, group_by=group_by, type=type_filter, source=source_filter, search=search, min_count=min_count, sort=sort, dir=direction) }}">Next &raquo;</a>
+    {% endif %}
+  </div>
+  {% endif %}
+</section>
+
+{% endblock %}

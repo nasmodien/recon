@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Payments - Bank Recon{% endblock %}
+{% block crumb %}Payments{% endblock %}
+{% block content %}
+
+<section class="card">
+  <h2>Payments Query &amp; Timeline</h2>
+  <p class="hint">Filter payments and see when they were received (above the line) versus paid out (below the line).</p>
+
+  <form method="get" class="filter-form">
+    <select name="customer_code">
+      <option value="">All customers</option>
+      {% for c in customer_codes %}
+      <option value="{{ c }}" {% if customer_code == c %}selected{% endif %}>{{ c }}</option>
+      {% endfor %}
+    </select>
+    <select name="type">
+      <option value="">All types</option>
+      <option value="income" {% if type_filter == 'income' %}selected{% endif %}>Received (income)</option>
+      <option value="expense" {% if type_filter == 'expense' %}selected{% endif %}>Paid (expense)</option>
+    </select>
+    <select name="category">
+      <option value="">All categories</option>
+      {% for c in categories %}
+      <option value="{{ c }}" {% if category_filter == c %}selected{% endif %}>{{ c }}</option>
+      {% endfor %}
+    </select>
+    <input type="date" name="start_date" value="{{ start_date or '' }}">
+    <input type="date" name="end_date" value="{{ end_date or '' }}">
+    <button type="submit">Filter</button>
+    <a href="{{ url_for('payments') }}" class="link-button">Clear</a>
+  </form>
+
+  <div class="summary-grid">
+    <div class="card stat stat-income">
+      <span class="stat-icon">&#8593;</span>
+      <span class="stat-label">Received</span>
+      <span class="stat-value">{{ received_total|currency }}</span>
+    </div>
+    <div class="card stat stat-expense">
+      <span class="stat-icon">&#8595;</span>
+      <span class="stat-label">Paid</span>
+      <span class="stat-value">{{ paid_total|currency }}</span>
+    </div>
+    <div class="card stat stat-net">
+      <span class="stat-icon">&#8776;</span>
+      <span class="stat-label">Net</span>
+      <span class="stat-value">{{ (received_total - paid_total)|currency }}</span>
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Timeline</h2>
+  {% if timeline %}
+  <canvas id="timeline-chart" height="110"></canvas>
+  {% else %}
+  <p class="hint">No payments match these filters.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Results ({{ payments|length }})</h2>
+  <table class="data-table">
+    <thead><tr><th>Date</th><th>Description</th><th>Customer</th><th>Type</th><th>Amount</th><th>Category</th></tr></thead>
+    <tbody>
+      {% for p in payments %}
+      <tr class="{{ 'row-income' if p.type == 'income' else 'row-expense' }}">
+        <td>{{ p.date }}</td>
+        <td>{{ p.description }}</td>
+        <td>{{ p.customer_code or '' }}</td>
+        <td>{{ p.type }}</td>
+        <td>{{ p.amount|currency }}</td>
+        <td>{{ p.category }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6">No payments found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+{% if timeline %}
+<script src="{{ url_for('static', filename='js/chart.umd.js') }}"></script>
+<script src="{{ url_for('static', filename='js/chartjs-adapter-date-fns.bundle.min.js') }}"></script>
+<script>
+  const timeline = {{ timeline|tojson }};
+  const ctx = document.getElementById('timeline-chart');
+  new Chart(ctx, {
+    type: 'scatter',
+    data: {
+      datasets: [
+        {
+          label: 'Received',
+          data: timeline.filter(p => p.type === 'income').map(p => ({ x: p.date, y: p.amount, meta: p })),
+          backgroundColor: '#1a7f37',
+        },
+        {
+          label: 'Paid',
+          data: timeline.filter(p => p.type === 'expense').map(p => ({ x: p.date, y: p.amount, meta: p })),
+          backgroundColor: '#cf222e',
+        },
+      ],
+    },
+    options: {
+      scales: {
+        x: { type: 'time', time: { unit: 'day' }, title: { display: true, text: 'Date' } },
+        y: { title: { display: true, text: 'Amount (received above zero, paid below)' } },
+      },
+      plugins: {
+        tooltip: {
+          callbacks: {
+            label: (item) => {
+              const m = item.raw.meta;
+              return `${m.customer_code || ''} ${m.description}: ${m.amount}`;
+            },
+          },
+        },
+      },
+    },
+  });
+</script>
+{% endif %}
+
+{% endblock %}

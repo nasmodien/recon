@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Transactions - Bank Recon{% endblock %}
+{% block crumb %}Transactions{% endblock %}
 {% block content %}
 
 <section class="card">
@@ -22,23 +23,61 @@
       <option value="{{ c }}" {% if category_filter == c %}selected{% endif %}>{{ c }}</option>
       {% endfor %}
     </select>
+    <select name="source">
+      <option value="" {% if not source_filter %}selected{% endif %}>Both banks</option>
+      <option value="FNB" {% if source_filter == 'FNB' %}selected{% endif %}>FNB only</option>
+      <option value="ABSA" {% if source_filter == 'ABSA' %}selected{% endif %}>ABSA only</option>
+    </select>
+    <input type="text" name="search" placeholder="Search description..." value="{{ search or '' }}">
     <button type="submit">Filter</button>
     <a href="{{ url_for('transactions') }}" class="link-button">Clear</a>
   </form>
 
+  <div class="summary-grid">
+    <div class="card stat stat-income">
+      <span class="stat-icon">&#8593;</span>
+      <span class="stat-label">Income</span>
+      <span class="stat-value">{{ income_total|currency }}</span>
+    </div>
+    <div class="card stat stat-expense">
+      <span class="stat-icon">&#8595;</span>
+      <span class="stat-label">Expense</span>
+      <span class="stat-value">{{ expense_total|currency }}</span>
+    </div>
+    <div class="card stat stat-net">
+      <span class="stat-icon">&#8776;</span>
+      <span class="stat-label">Net</span>
+      <span class="stat-value">{{ net_total|currency }}</span>
+    </div>
+  </div>
+
+  <p class="hint">Showing {{ transactions|length }} of {{ total_count }} transactions &mdash; page {{ page }} of {{ total_pages }}.</p>
+
   <table class="data-table">
     <thead>
       <tr>
-        <th>Date</th><th>Description</th><th>Type</th><th>Amount</th><th>Category</th><th>Statement</th><th></th>
+        <th>
+          <a class="sort-link" href="{{ url_for('transactions', statement_id=statement_id, type=type_filter, category=category_filter, search=search, source=source_filter, sort='date', dir=('asc' if sort == 'date' and direction == 'desc' else 'desc')) }}">
+            Date{% if sort == 'date' %}{{ ' ↑' if direction == 'asc' else ' ↓' }}{% endif %}
+          </a>
+        </th>
+        <th>Bank</th><th>Description</th><th>Type</th>
+        <th>
+          <a class="sort-link" href="{{ url_for('transactions', statement_id=statement_id, type=type_filter, category=category_filter, search=search, source=source_filter, sort='amount', dir=('asc' if sort == 'amount' and direction == 'desc' else 'desc')) }}">
+            Amount{% if sort == 'amount' %}{{ ' ↑' if direction == 'asc' else ' ↓' }}{% endif %}
+          </a>
+        </th>
+        <th>Category</th><th>Statement</th><th></th>
       </tr>
     </thead>
     <tbody>
       {% for t in transactions %}
-      <tr class="{{ 'row-income' if t.type == 'income' else 'row-expense' }}">
+      <tr class="{{ 'row-income' if t.type == 'income' else 'row-expense' }}{{ ' bank-absa' if not source_filter and t.source == 'ABSA' else '' }}{{ ' bank-fnb' if not source_filter and t.source == 'FNB' else '' }}">
         <td>{{ t.date }}</td>
+        <td><span class="bank-badge bank-badge-{{ t.source|lower }}">{{ t.source }}</span></td>
         <td>{{ t.description }}</td>
         <td>{{ t.type }}</td>
-        <td>{{ "%.2f"|format(t.amount) }}</td>
+        <td>{{ t.amount|currency }}</td>
         <td>
           <form action="{{ url_for('update_category', txn_id=t.id) }}" method="post" class="inline-form">
             <input type="text" name="category" value="{{ t.category }}">
@@ -54,10 +93,22 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="7">No transactions found.</td></tr>
+      <tr><td colspan="8">No transactions found.</td></tr>
       {% endfor %}
     </tbody>
   </table>
+
+  {% if total_pages > 1 %}
+  <div class="pagination">
+    {% if page > 1 %}
+    <a class="link-button" href="{{ url_for('transactions', page=page-1, statement_id=statement_id, type=type_filter, category=category_filter, search=search, source=source_filter, sort=sort, dir=direction) }}">&laquo; Previous</a>
+    {% endif %}
+    <span class="hint">Page {{ page }} of {{ total_pages }}</span>
+    {% if page < total_pages %}
+    <a class="link-button" href="{{ url_for('transactions', page=page+1, statement_id=statement_id, type=type_filter, category=category_filter, search=search, source=source_filter, sort=sort, dir=direction) }}">Next &raquo;</a>
+    {% endif %}
+  </div>
+  {% endif %}
 </section>
 
 {% endblock %}

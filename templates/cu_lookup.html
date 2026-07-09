@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block title %}CU Lookup - Bank Recon{% endblock %}
+{% block crumb %}CU Lookup{% endblock %}
+{% block content %}
+
+<section class="card">
+  <h2>CU / Customer Code Lookup</h2>
+  <p class="hint">Search by CU number to see all money received from and paid to that client, with a full monthly timeline.</p>
+
+  <form method="get" class="filter-form" id="cu-search-form">
+    <input
+      type="text"
+      id="cu-input"
+      name="code"
+      list="cu-list"
+      placeholder="Enter CU number e.g. Cu12345"
+      value="{{ code or '' }}"
+      style="min-width:260px;"
+      autocomplete="off"
+    >
+    <datalist id="cu-list">
+      {% for row in all_codes %}
+      <option value="{{ row.customer_code }}">{% if row.client_name %}{{ row.client_name }}{% endif %}</option>
+      {% endfor %}
+    </datalist>
+    <button type="submit">Look up</button>
+    {% if code %}<a href="{{ url_for('cu_lookup') }}" class="link-button">Clear</a>{% endif %}
+  </form>
+</section>
+
+{% if code and not result %}
+<section class="card">
+  <p class="hint">No transactions found for <strong>{{ code }}</strong>.</p>
+</section>
+{% endif %}
+
+{% if result %}
+
+<section class="card">
+  <h2>
+    {{ result.code }}
+    {% if result.client_name %}<span class="cu-client-name">&mdash; {{ result.client_name }}</span>{% endif %}
+  </h2>
+  <p class="hint">{{ result.txns|length }} transaction{{ '' if result.txns|length == 1 else 's' }} &middot; {{ result.monthly|length }} month{{ '' if result.monthly|length == 1 else 's' }}</p>
+
+  <div class="summary-grid">
+    <div class="card stat stat-income">
+      <span class="stat-icon">&#8593;</span>
+      <span class="stat-label">Total Received</span>
+      <span class="stat-value">{{ result.received|currency }}</span>
+    </div>
+    <div class="card stat stat-expense">
+      <span class="stat-icon">&#8595;</span>
+      <span class="stat-label">Total Paid Out</span>
+      <span class="stat-value">{{ result.paid|currency }}</span>
+    </div>
+    <div class="card stat stat-net">
+      <span class="stat-icon">&#8776;</span>
+      <span class="stat-label">Net</span>
+      <span class="stat-value">{{ result.net|currency }}</span>
+    </div>
+  </div>
+</section>
+
+{% if result.monthly %}
+<section class="card">
+  <h2>Monthly Timeline</h2>
+  <div class="cu-chart-wrap">
+    <canvas id="cu-monthly-chart" aria-label="Monthly income and expense for {{ result.code }}" role="img"></canvas>
+  </div>
+
+  <details class="cu-table-toggle">
+    <summary class="hint">Show monthly table</summary>
+    <table class="data-table" style="margin-top:0.75rem;">
+      <thead><tr><th>Month</th><th>Received (in)</th><th>Paid Out</th><th>Net</th></tr></thead>
+      <tbody>
+        {% for m in result.monthly %}
+        <tr>
+          <td>{{ m.month }}</td>
+          <td class="amt-income">{{ m.income|currency }}</td>
+          <td class="amt-expense">{{ m.expense|currency }}</td>
+          <td class="{{ 'amt-income' if (m.income - m.expense) >= 0 else 'amt-expense' }}">{{ (m.income - m.expense)|currency }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </details>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Received (Income) &mdash; {{ result.txns | selectattr('type','equalto','income') | list | length }} transactions</h2>
+  <table class="data-table">
+    <thead><tr><th>Date</th><th>Bank</th><th>Description</th><th>Amount</th><th>Category</th></tr></thead>
+    <tbody>
+      {% set income_txns = result.txns | selectattr('type','equalto','income') | list %}
+      {% for t in income_txns %}
+      <tr>
+        <td>{{ t.date }}</td>
+        <td><span class="bank-badge bank-badge-{{ t.source|lower }}">{{ t.source }}</span></td>
+        <td>{{ t.description }}</td>
+        <td class="amt-income">{{ t.amount|currency }}</td>
+        <td>{{ t.category }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">No income transactions.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="card">
+  <h2>Paid Out (Expense) &mdash; {{ result.txns | selectattr('type','equalto','expense') | list | length }} transactions</h2>
+  <table class="data-table">
+    <thead><tr><th>Date</th><th>Bank</th><th>Description</th><th>Amount</th><th>Category</th></tr></thead>
+    <tbody>
+      {% set expense_txns = result.txns | selectattr('type','equalto','expense') | list %}
+      {% for t in expense_txns %}
+      <tr>
+        <td>{{ t.date }}</td>
+        <td><span class="bank-badge bank-badge-{{ t.source|lower }}">{{ t.source }}</span></td>
+        <td>{{ t.description }}</td>
+        <td class="amt-expense">{{ t.amount|currency }}</td>
+        <td>{{ t.category }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">No expense transactions.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<script src="{{ url_for('static', filename='js/chart.umd.js') }}"></script>
+<script>
+(function () {
+  const monthly = {{ result.monthly | tojson }};
+  if (!monthly.length) return;
+
+  const labels  = monthly.map(m => m.month);
+  const income  = monthly.map(m => parseFloat(m.income));
+  const expense = monthly.map(m => parseFloat(m.expense));
+
+  const INC_COLOR = '#1a7f37';
+  const EXP_COLOR = '#cf222e';
+
+  const ctx = document.getElementById('cu-monthly-chart');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Received',
+          data: income,
+          backgroundColor: INC_COLOR,
+          borderRadius: 4,
+          borderSkipped: false,
+        },
+        {
+          label: 'Paid Out',
+          data: expense,
+          backgroundColor: EXP_COLOR,
+          borderRadius: 4,
+          borderSkipped: false,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { font: { size: 11 }, maxRotation: 45 },
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: 'rgba(0,0,0,0.06)' },
+          ticks: {
+            callback: v => 'R ' + (v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v.toLocaleString()),
+            font: { size: 11 },
+          },
+        },
+      },
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: { boxWidth: 12, font: { size: 11 }, padding: 16 },
+        },
+        tooltip: {
+          callbacks: {
+            label: item => ` ${item.dataset.label}: R ${parseFloat(item.raw).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}`,
+          },
+        },
+      },
+    },
+  });
+})();
+</script>
+{% endif %}
+
+{% endblock %}
